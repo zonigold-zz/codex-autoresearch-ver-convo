@@ -163,7 +163,7 @@ $(sed 's/^/   /' "$repo/prompt.txt")
    - It iterates autonomously until tests pass or you interrupt it.
 
 5. After you stop the run, validate artifacts:
-   python3 "$ROOT/scripts/check_skill_invariants.py" interactive --repo "$repo" --verify-cmd "python3 -m unittest -q" --expect-improvement
+   python3 "$ROOT/scripts/check_skill_invariants.py" interactive --repo "$repo" --verify-cmd "python3 -m unittest discover -s tests -q" --expect-improvement
 EOF
 
   cleanup_if_requested "$tmpdir"
