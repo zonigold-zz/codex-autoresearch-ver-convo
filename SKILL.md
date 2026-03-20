@@ -114,9 +114,10 @@ Every mode should follow `references/structured-output-spec.md`.
 
 Minimum requirement:
 
-- print a setup summary before the loop starts,
-- print progress updates during the loop,
-- print a completion summary at the end,
+- for interactive and user-facing modes, print a setup summary before the loop starts,
+- for interactive and user-facing modes, print progress updates during the loop,
+- for interactive and user-facing modes, print a completion summary at the end,
+- for `exec`, emit only the machine-readable JSON payloads defined in `references/exec-workflow.md`,
 - write the mode-specific output files when the workflow defines an output directory.
 
 ## Quick Start

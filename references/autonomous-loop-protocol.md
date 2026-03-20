@@ -328,7 +328,7 @@ Always log:
 - iteration number,
 - commit hash or `-`,
 - metric,
-- delta vs best known result,
+- delta vs the retained metric before the row,
 - guard outcome,
 - status,
 - one-line description.

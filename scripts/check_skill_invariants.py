@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
+import math
 import re
 import subprocess
 from pathlib import Path
@@ -17,7 +19,12 @@ from autoresearch_helpers import (
 
 
 BUNDLED_HELPER_RE = re.compile(
-    r"(?:\.agents/skills|\.codex/skills|/etc/codex/skills)/[^\s\"']+/scripts/"
+    r"(?:"
+    r"(?:\.agents/skills|\.codex/skills)/[^\s\"']+"
+    r"|~/(?:\.agents|\.codex)/skills/[^\s\"']+"
+    r"|/etc/codex/skills/[^\s\"']+"
+    r"|(?:~|/)[^\s\"']*/codex-autoresearch"
+    r")/scripts/"
     r"autoresearch_(init_run|record_iteration|resume_check|select_parallel_batch|exec_state)\.py\b"
 )
 
@@ -102,6 +109,135 @@ def validate_exec_event_log(event_log: Path) -> None:
         )
 
 
+def parse_exec_message_records(text: str) -> list[tuple[int, dict[str, object]]]:
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        records: list[tuple[int, dict[str, object]]] = []
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                payload = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                raise AutoresearchError(
+                    f"exec completion stream contains invalid JSON on line {line_number}"
+                ) from exc
+            if not isinstance(payload, dict):
+                raise AutoresearchError(
+                    f"exec completion stream line {line_number} must be a JSON object"
+                )
+            records.append((line_number, payload))
+        if not records:
+            raise AutoresearchError("last message file is empty")
+        return records
+
+    if not isinstance(payload, dict):
+        raise AutoresearchError("exec completion message must be a JSON object")
+    return [(1, payload)]
+
+
+def is_json_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def is_json_number(value: object) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return math.isfinite(value)
+
+
+def require_json_int_field(payload: dict[str, object], field: str, context: str) -> None:
+    if not is_json_int(payload[field]):
+        raise AutoresearchError(f"{context} field {field} must be an integer")
+
+
+def require_json_number_field(payload: dict[str, object], field: str, context: str) -> None:
+    if not is_json_number(payload[field]):
+        raise AutoresearchError(f"{context} field {field} must be a number")
+
+
+def require_json_string_field(payload: dict[str, object], field: str, context: str) -> None:
+    if not isinstance(payload[field], str):
+        raise AutoresearchError(f"{context} field {field} must be a string")
+
+
+def validate_exec_iteration_payload(line_number: int, payload: dict[str, object]) -> None:
+    required_fields = {
+        "iteration",
+        "commit",
+        "metric",
+        "delta",
+        "guard",
+        "status",
+        "description",
+    }
+    missing = sorted(required_fields - payload.keys())
+    if missing:
+        raise AutoresearchError(
+            "exec iteration message on line "
+            f"{line_number} is missing required fields: {', '.join(missing)}"
+        )
+    context = f"exec iteration message on line {line_number}"
+    require_json_int_field(payload, "iteration", context)
+    require_json_string_field(payload, "commit", context)
+    require_json_number_field(payload, "metric", context)
+    require_json_number_field(payload, "delta", context)
+    require_json_string_field(payload, "guard", context)
+    require_json_string_field(payload, "status", context)
+    require_json_string_field(payload, "description", context)
+    if payload["status"] == "completed":
+        raise AutoresearchError(
+            f"exec iteration message on line {line_number} cannot report status=completed"
+        )
+
+
+def validate_exec_completion_payload(last_message_path: Path) -> dict[str, object]:
+    text = last_message_path.read_text(encoding="utf-8").strip()
+    if not text:
+        raise AutoresearchError("last message file is empty")
+
+    records = parse_exec_message_records(text)
+    for line_number, record in records[:-1]:
+        validate_exec_iteration_payload(line_number, record)
+
+    _, payload = records[-1]
+
+    if payload.get("status") != "completed":
+        raise AutoresearchError("exec completion message must report status=completed")
+
+    required_fields = {
+        "status",
+        "baseline",
+        "best",
+        "best_iteration",
+        "total_iterations",
+        "keeps",
+        "discards",
+        "crashes",
+        "improved",
+        "exit_code",
+    }
+    missing = sorted(required_fields - payload.keys())
+    if missing:
+        raise AutoresearchError(
+            "exec completion message is missing required fields: " + ", ".join(missing)
+        )
+    context = "exec completion message"
+    require_json_number_field(payload, "baseline", context)
+    require_json_number_field(payload, "best", context)
+    require_json_int_field(payload, "best_iteration", context)
+    require_json_int_field(payload, "total_iterations", context)
+    require_json_int_field(payload, "keeps", context)
+    require_json_int_field(payload, "discards", context)
+    require_json_int_field(payload, "crashes", context)
+    if not isinstance(payload["improved"], bool):
+        raise AutoresearchError("exec completion message field improved must be a boolean")
+    require_json_int_field(payload, "exit_code", context)
+    return payload
+
+
 def validate_exec(repo: Path, args: argparse.Namespace) -> None:
     results_path = repo / "research-results.tsv"
     prev_results_path = repo / "research-results.prev.tsv"
@@ -147,8 +283,11 @@ def validate_exec(repo: Path, args: argparse.Namespace) -> None:
         last_message_path = Path(args.last_message_file)
         if not last_message_path.exists():
             raise AutoresearchError("missing --output-last-message file from codex exec")
-        if not last_message_path.read_text(encoding="utf-8").strip():
-            raise AutoresearchError("last message file is empty")
+        completion_payload = validate_exec_completion_payload(last_message_path)
+        if args.expect_improvement and not completion_payload["improved"]:
+            raise AutoresearchError(
+                "exec completion message did not report improved=true"
+            )
     if args.event_log:
         validate_exec_event_log(Path(args.event_log))
 

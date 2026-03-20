@@ -1,6 +1,6 @@
 # Structured Output Specification
 
-Every `codex-autoresearch` mode must produce predictable human-readable output and, where defined, predictable artifact files.
+Every `codex-autoresearch` mode must produce predictable output and, where defined, predictable artifact files. Interactive and user-facing modes use human-readable sections; `exec` uses JSON-only machine-readable output.
 
 ## Status Values
 
@@ -20,6 +20,8 @@ All modes share these status values (see `references/results-logging.md` for ful
 | `drift` | Metric drifted from expected value during session resume |
 
 ## Common Response Sections
+
+These sections apply to interactive and other user-facing modes. `exec` mode is the exception and follows the JSON contract below.
 
 Before work starts:
 
