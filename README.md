@@ -473,6 +473,8 @@ Non-interactive mode for automation pipelines. All config is provided upfront --
 
 Exit codes: 0 = improved, 1 = no improvement, 2 = hard blocker.
 
+Before using `codex exec` in CI, configure Codex CLI authentication in advance. For programmatic runs, API key authentication is the preferred option.
+
 See `references/exec-workflow.md`.
 
 ---
@@ -553,6 +555,7 @@ codex-autoresearch/
       README_RU.md                  # Russian
   scripts/
     validate_skill_structure.sh     # structure validator
+    run_contributor_gate.sh         # contributor acceptance gate
     autoresearch_helpers.py         # shared TSV/JSON helpers
     autoresearch_init_run.py        # initialize baseline log + state
     autoresearch_record_iteration.py # append one main iteration + update state
@@ -606,7 +609,7 @@ codex-autoresearch/
 
 **Can it search the web?** Yes, when stuck after multiple strategy pivots. Web search results are treated as hypotheses and verified mechanically.
 
-**How do I use it in CI?** Use `Mode: exec` or `codex exec`. All config is provided upfront, output is JSON, and exit codes indicate success/failure.
+**How do I use it in CI?** Use `Mode: exec` or `codex exec`. Configure Codex CLI authentication first; API key auth is preferred for CI/programmatic use. All config is provided upfront, output is JSON, and exit codes indicate success/failure.
 
 **Can it test multiple ideas at once?** Yes. Enable parallel experiments during setup. It uses git worktrees to test up to 3 hypotheses simultaneously.
 

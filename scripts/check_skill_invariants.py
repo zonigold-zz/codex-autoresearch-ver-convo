@@ -17,7 +17,7 @@ from autoresearch_helpers import (
 
 
 BUNDLED_HELPER_RE = re.compile(
-    r"(?:\.agents/skills|\.codex/skills)/[^\s\"']+/scripts/"
+    r"(?:\.agents/skills|\.codex/skills|/etc/codex/skills)/[^\s\"']+/scripts/"
     r"autoresearch_(init_run|record_iteration|resume_check|select_parallel_batch|exec_state)\.py\b"
 )
 

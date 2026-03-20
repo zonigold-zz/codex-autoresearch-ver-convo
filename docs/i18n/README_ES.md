@@ -437,9 +437,9 @@ Consulta `references/parallel-experiments-protocol.md`.
 
 ## Reanudacion de sesion
 
-Si Codex detecta una ejecucion anterior interrumpida, puede reanudar desde el ultimo estado consistente en lugar de empezar de cero. La fuente de recuperacion principal es `autoresearch-state.json`, una instantanea de estado compacta actualizada atomicamente en cada iteracion. El registro TSV sirve como validacion cruzada y respaldo.
+Si Codex detecta una ejecucion anterior interrumpida en modo interactivo, puede reanudar desde el ultimo estado consistente en lugar de empezar de cero. La fuente de recuperacion principal es `autoresearch-state.json`, una instantanea de estado compacta actualizada atomicamente en cada iteracion. En modo `exec`, el estado solo existe en un archivo temporal bajo `/tmp/codex-autoresearch-exec/...` y se limpia antes de salir.
 
-Prioridad de recuperacion:
+Prioridad de recuperacion para modos interactivos:
 
 1. **JSON + TSV consistentes:** reanudacion inmediata, asistente omitido
 2. **JSON valido, TSV inconsistente:** mini-asistente (1 ronda de confirmacion)
@@ -473,6 +473,8 @@ Modo no interactivo para pipelines de automatizacion. Toda la configuracion se p
 
 Codigos de salida: 0 = mejoro, 1 = sin mejora, 2 = bloqueo duro.
 
+Antes de usar `codex exec` en CI, configura por adelantado la autenticacion del CLI de Codex. Para ejecuciones programaticas, la autenticacion mediante API key es la opcion preferida.
+
 Consulta `references/exec-workflow.md`.
 
 ---
@@ -482,7 +484,7 @@ Consulta `references/exec-workflow.md`.
 Cada iteracion se registra en dos formatos complementarios:
 
 - **`research-results.tsv`** -- pista de auditoria completa, con una fila principal por iteracion y filas worker paralelas cuando haga falta
-- **`autoresearch-state.json`** -- instantanea de estado compacta para reanudacion rapida de sesion
+- **`autoresearch-state.json`** -- instantanea de estado compacta para reanudacion rapida de sesion en modos interactivos
 
 ```
 iteration  commit   metric  delta   status    description
@@ -491,6 +493,8 @@ iteration  commit   metric  delta   status    description
 2          -        49      +8      discard   generic wrapper introduced new anys
 3          c3d4e5f  38      -3      keep      type-narrow API response handlers
 ```
+
+En modo `exec`, la instantanea de estado solo vive bajo `/tmp/codex-autoresearch-exec/...` y se elimina antes de salir. Actualiza estos artefactos mediante los helper scripts incluidos en `<skill-root>/scripts/...`, no desde el directorio `scripts/` del repo objetivo.
 
 Ambos archivos no se commitean en git. Durante la reanudacion de sesion, el estado JSON se valida cruzadamente con un resumen reconstruido de las iteraciones principales TSV, no con el simple conteo de filas. Los resumenes de progreso se imprimen cada 5 iteraciones. Las ejecuciones acotadas imprimen un resumen final de linea base a mejor resultado.
 

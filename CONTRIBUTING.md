@@ -49,7 +49,7 @@ ln -s /path/to/your/fork your-project/.agents/skills/codex-autoresearch
 
 3. Open Codex in the test project, type `$codex-autoresearch`, and verify the skill activates.
 
-4. Make your changes. Test by invoking the skill in different scenarios. If you changed anything in `scripts/` or state semantics, also run the stdlib test suite.
+4. Make your changes. Test by invoking the skill in different scenarios. Do not treat the stdlib tests as the whole acceptance bar for behavior changes.
 
 5. When satisfied, remove the symlink and submit a PR.
 
@@ -131,14 +131,34 @@ Keep PRs focused. One logical change per PR.
 - Adding verbose comments or explanations for self-evident content
 - Bumping version numbers (maintainers handle releases)
 
+## Contributor Gate
+
+The automated tests are real and useful, but they do **not** all validate the same layer:
+
+- `tests/test_autoresearch_scripts.py` executes the helper scripts directly and checks TSV/JSON semantics.
+- `tests/test_check_skill_invariants.py` validates the invariant checker itself.
+- `bash scripts/run_skill_e2e.sh exec-smoke --clean` runs the real skill through `codex exec` in a disposable fixture repo.
+
+That means `python3 -m unittest ...` alone is not enough to prove the skill still works end to end.
+
+Use this gate table:
+
+| Change type | Minimum gate |
+|-------------|--------------|
+| Docs-only wording, examples, translations | `bash scripts/run_contributor_gate.sh docs` |
+| Any `scripts/`, `SKILL.md`, `references/`, invariant, or artifact/state semantics change | `bash scripts/run_contributor_gate.sh skill` |
+| Wizard / ask-before-act / `"go"` boundary / interactive loop behavior | `bash scripts/run_contributor_gate.sh skill` **plus** `bash scripts/run_skill_e2e.sh interactive-smoke` |
+
+The `interactive-smoke` harness prints the exact manual verification steps. Keep it manual; it is meant to verify conversational behavior that the automated gate cannot prove.
+
 ## Validating your changes
 
 ```bash
-bash scripts/validate_skill_structure.sh
-python3 -m unittest discover -s tests -p 'test_*.py'
+bash scripts/run_contributor_gate.sh docs
+bash scripts/run_contributor_gate.sh skill
 ```
 
-This checks that the required files exist, the helper scripts are present, and the script interfaces still behave end to end.
+`docs` is the lightweight structure check. `skill` is the real automated contributor gate: structure validation, helper/invariant unit tests, and a disposable `codex exec` smoke run.
 
 For real skill-level validation against Codex CLI itself:
 
@@ -149,7 +169,7 @@ bash scripts/run_skill_e2e.sh interactive-smoke
 
 `exec-smoke` runs the real skill through `codex exec` in a disposable fixture repo and checks artifact invariants. `interactive-smoke` prepares a disposable repo and prints the exact manual wizard/`go` smoke-test steps.
 
-For behavioral validation, there is no automated test suite. The skill is Markdown instructions -- the only way to test is to use it. Symlink your branch, invoke the skill with various prompts, and verify Codex follows the updated instructions.
+For interactive behavioral validation, there is no fully automated suite. The skill is Markdown instructions plus helper scripts -- the only way to test wizard and autonomy boundaries is to use it. Symlink your branch, invoke the skill with various prompts, and verify Codex follows the updated instructions.
 
 Edge cases worth trying:
 

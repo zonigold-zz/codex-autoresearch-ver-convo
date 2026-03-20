@@ -437,9 +437,9 @@ Consulte `references/parallel-experiments-protocol.md`.
 
 ## Retomada de sessao
 
-Se o Codex detectar uma execucao anterior interrompida, ele pode retomar do ultimo estado consistente em vez de comecar do zero. A fonte de recuperacao principal e `autoresearch-state.json`, um snapshot de estado compacto atualizado atomicamente a cada iteracao. O log TSV serve como validacao cruzada e fallback.
+Se o Codex detectar uma execucao anterior interrompida em modo interativo, ele pode retomar do ultimo estado consistente em vez de comecar do zero. A fonte de recuperacao principal e `autoresearch-state.json`, um snapshot de estado compacto atualizado atomicamente a cada iteracao. No modo `exec`, o estado existe apenas em um arquivo temporario sob `/tmp/codex-autoresearch-exec/...` e e removido antes de sair.
 
-Prioridade de recuperacao:
+Prioridade de recuperacao para modos interativos:
 
 1. **JSON + TSV consistentes:** retomada imediata, assistente ignorado
 2. **JSON valido, TSV inconsistente:** mini-assistente (1 rodada de confirmacao)
@@ -473,6 +473,8 @@ Modo nao interativo para pipelines de automacao. Toda a configuracao e fornecida
 
 Codigos de saida: 0 = melhorou, 1 = sem melhoria, 2 = bloqueio duro.
 
+Antes de usar `codex exec` em CI, configure antecipadamente a autenticacao do CLI do Codex. Para execucoes programaticas, a autenticacao por API key e a opcao preferida.
+
 Consulte `references/exec-workflow.md`.
 
 ---
@@ -482,7 +484,7 @@ Consulte `references/exec-workflow.md`.
 Cada iteracao e registrada em dois formatos complementares:
 
 - **`research-results.tsv`** -- trilha de auditoria completa, com uma linha principal por iteracao e linhas paralelas de worker quando necessario
-- **`autoresearch-state.json`** -- snapshot de estado compacto para retomada rapida de sessao
+- **`autoresearch-state.json`** -- snapshot de estado compacto para retomada rapida de sessao em modos interativos
 
 ```
 iteration  commit   metric  delta   status    description
@@ -491,6 +493,8 @@ iteration  commit   metric  delta   status    description
 2          -        49      +8      discard   generic wrapper introduced new anys
 3          c3d4e5f  38      -3      keep      type-narrow API response handlers
 ```
+
+No modo `exec`, o snapshot de estado existe apenas em `/tmp/codex-autoresearch-exec/...` e e removido antes da saida. Atualize esses artefatos pelos helper scripts empacotados em `<skill-root>/scripts/...`, e nao pelo diretorio `scripts/` do repo alvo.
 
 Ambos os arquivos nao sao commitados no git. Durante a retomada de sessao, o estado JSON e validado cruzadamente com um resumo reconstruido das iteracoes principais do TSV, e nao com a simples contagem de linhas. Resumos de progresso sao impressos a cada 5 iteracoes. Execucoes limitadas imprimem um resumo final da linha de base ao melhor resultado.
 

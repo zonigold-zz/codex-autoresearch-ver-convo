@@ -1,6 +1,6 @@
 # Installation
 
-`codex-autoresearch` is a Markdown-only Codex skill package. No build step, no dependencies.
+`codex-autoresearch` is a Markdown-first Codex skill package with bundled helper scripts. No build step, no runtime dependencies.
 
 ## Install
 

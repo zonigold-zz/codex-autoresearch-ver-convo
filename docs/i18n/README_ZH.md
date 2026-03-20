@@ -437,9 +437,9 @@ security + fix               # 审计并修复一步到位
 
 ## 会话恢复
 
-如果 Codex 检测到之前被中断的运行，它可以从最后一致的状态恢复，而不是从头开始。主要恢复来源是 `autoresearch-state.json`，一个每次迭代原子更新的紧凑状态快照。TSV 结果日志作为交叉验证的回退。
+如果 Codex 在交互模式下检测到之前被中断的运行，它可以从最后一致的状态恢复，而不是从头开始。主要恢复来源是 `autoresearch-state.json`，一个每次迭代原子更新的紧凑状态快照。`exec` 模式下，状态只会写入 `/tmp/codex-autoresearch-exec/...` 下的临时文件，并会在退出前清理。
 
-恢复优先级：
+恢复优先级（交互模式）：
 
 1. **JSON + TSV 一致：** 立即恢复，跳过向导
 2. **JSON 有效，TSV 不一致：** 迷你向导（1 轮确认）
@@ -473,6 +473,8 @@ security + fix               # 审计并修复一步到位
 
 退出码：0 = 已改善，1 = 无改善，2 = 硬阻塞。
 
+在 CI 中使用 `codex exec` 前，请先配置好 Codex CLI 认证。对于程序化运行，优先使用 API key 认证。
+
 详见 `references/exec-workflow.md`。
 
 ---
@@ -482,7 +484,7 @@ security + fix               # 审计并修复一步到位
 每次迭代以两种互补格式记录：
 
 - **`research-results.tsv`** -- 完整审计跟踪，每次迭代一个主行，必要时附带并行 worker 行
-- **`autoresearch-state.json`** -- 用于快速会话恢复的紧凑状态快照
+- **`autoresearch-state.json`** -- 用于交互模式快速会话恢复的紧凑状态快照
 
 ```
 iteration  commit   metric  delta   status    description
@@ -491,6 +493,8 @@ iteration  commit   metric  delta   status    description
 2          -        49      +8      discard   generic wrapper introduced new anys
 3          c3d4e5f  38      -3      keep      type-narrow API response handlers
 ```
+
+`exec` 模式下，状态快照仅保存在 `/tmp/codex-autoresearch-exec/...` 的临时位置，并会在退出前清理。请通过 `<skill-root>/scripts/...` 下随 skill 打包的 helper scripts 更新这些工件，而不是调用目标仓库自己的 `scripts/` 目录。
 
 两个文件都不提交到 git。会话恢复时，JSON 状态会与重建出的 TSV 主迭代摘要交叉验证，而不是直接对比行数。进度摘要每 5 次迭代打印一次。有界运行在最后打印基线到最优的总结。
 

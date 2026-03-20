@@ -141,6 +141,46 @@ class CheckSkillInvariantsTest(unittest.TestCase):
             self.assertEqual(completed.returncode, 0, completed.stderr)
             self.assertIn("exec invariants: OK", completed.stdout)
 
+    def test_exec_invariants_accept_admin_scope_skill_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            event_log = repo / "events.jsonl"
+            (repo / "research-results.tsv").write_text(
+                "\n".join(
+                    [
+                        "# metric_direction: lower",
+                        "iteration\tcommit\tmetric\tdelta\tguard\tstatus\tdescription",
+                        "0\tbase123\t10\t0\t-\tbaseline\tbaseline score",
+                        "1\tkeep123\t8\t-2\tpass\tkeep\timproved score",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (repo / "autoresearch-lessons.md").write_text("# lessons\n", encoding="utf-8")
+            event_log.write_text(
+                "\n".join(
+                    [
+                        "command: python3 /etc/codex/skills/codex-autoresearch/scripts/autoresearch_init_run.py --mode exec",
+                        "command: python3 /etc/codex/skills/codex-autoresearch/scripts/autoresearch_record_iteration.py --status keep",
+                        "command: python3 /etc/codex/skills/codex-autoresearch/scripts/autoresearch_exec_state.py --cleanup",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            completed = self.run_invariant_check(
+                "exec",
+                "--repo",
+                str(repo),
+                "--event-log",
+                str(event_log),
+            )
+
+            self.assertEqual(completed.returncode, 0, completed.stderr)
+            self.assertIn("exec invariants: OK", completed.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

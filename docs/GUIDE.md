@@ -579,6 +579,8 @@ Non-interactive mode for automation pipelines. Differences from interactive mode
 - Reads lessons if available, but does not write them
 - Exit codes: 0 = improved, 1 = no improvement, 2 = hard blocker
 
+Before using `codex exec` in CI, configure Codex CLI authentication in advance. For programmatic runs, API key authentication is the preferred option.
+
 See `references/exec-workflow.md` for full details and CI integration examples.
 
 ---

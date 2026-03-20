@@ -30,6 +30,8 @@ If any required field is missing, exit immediately with code 2 and a JSON error.
 
 In Codex CLI, `codex exec` accepts a prompt. Do not assume a skill-specific `--skill` flag exists; invoke the skill in the prompt itself.
 
+Before using `codex exec` in CI, configure Codex CLI authentication outside the skill itself. For programmatic runs, API key authentication is the preferred option.
+
 ## Behavior Differences from Interactive Mode
 
 | Aspect | Interactive | Exec |

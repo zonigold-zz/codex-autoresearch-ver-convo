@@ -437,9 +437,9 @@ Siehe `references/parallel-experiments-protocol.md`.
 
 ## Sitzungswiederaufnahme
 
-Wenn Codex einen zuvor unterbrochenen Lauf erkennt, kann er vom letzten konsistenten Zustand fortfahren, anstatt von vorne zu beginnen. Die primaere Wiederherstellungsquelle ist `autoresearch-state.json`, ein kompakter Zustandssnapshot, der bei jeder Iteration atomar aktualisiert wird. Das TSV-Ergebnisprotokoll dient als Kreuzvalidierung und Fallback.
+Wenn Codex in einem interaktiven Modus einen zuvor unterbrochenen Lauf erkennt, kann es vom letzten konsistenten Zustand fortfahren, anstatt von vorne zu beginnen. Die primaere Wiederherstellungsquelle ist `autoresearch-state.json`, ein kompakter Zustandssnapshot, der bei jeder Iteration atomar aktualisiert wird. Im Modus `exec` liegt der Zustand nur in einer temporaeren Datei unter `/tmp/codex-autoresearch-exec/...` und wird vor dem Beenden entfernt.
 
-Wiederherstellungsprioritaet:
+Wiederherstellungsprioritaet fuer interaktive Modi:
 
 1. **JSON + TSV konsistent:** sofortige Wiederaufnahme, Assistent uebersprungen
 2. **JSON gueltig, TSV inkonsistent:** Mini-Assistent (1 Runde Bestaetigung)
@@ -473,6 +473,8 @@ Nicht-interaktiver Modus fuer Automatisierungspipelines. Die gesamte Konfigurati
 
 Exit-Codes: 0 = verbessert, 1 = keine Verbesserung, 2 = harte Blockade.
 
+Bevor Sie `codex exec` in CI verwenden, konfigurieren Sie die Codex-CLI-Authentifizierung im Voraus. Fuer programmatische Laeufe ist API-Key-Authentifizierung die bevorzugte Option.
+
 Siehe `references/exec-workflow.md`.
 
 ---
@@ -482,7 +484,7 @@ Siehe `references/exec-workflow.md`.
 Jede Iteration wird in zwei komplementaeren Formaten aufgezeichnet:
 
 - **`research-results.tsv`** -- vollstaendiger Audit-Trail, mit einer Hauptzeile pro Iteration und optionalen parallelen Worker-Zeilen
-- **`autoresearch-state.json`** -- kompakter Zustandssnapshot fuer schnelle Sitzungswiederaufnahme
+- **`autoresearch-state.json`** -- kompakter Zustandssnapshot fuer schnelle Sitzungswiederaufnahme in interaktiven Modi
 
 ```
 iteration  commit   metric  delta   status    description
@@ -491,6 +493,8 @@ iteration  commit   metric  delta   status    description
 2          -        49      +8      discard   generic wrapper introduced new anys
 3          c3d4e5f  38      -3      keep      type-narrow API response handlers
 ```
+
+Im Modus `exec` existiert der Zustandssnapshot nur unter `/tmp/codex-autoresearch-exec/...` und wird vor dem Beenden bereinigt. Aktualisieren Sie diese Artefakte ueber die gebuendelten Helper-Skripte unter `<skill-root>/scripts/...`, nicht ueber das `scripts/`-Verzeichnis des Ziel-Repos.
 
 Beide Dateien werden nicht in git committed. Bei der Sitzungswiederaufnahme wird der JSON-Zustand gegen eine rekonstruierte TSV-Hauptiterationszusammenfassung kreuzvalidiert und nicht gegen die rohe Zeilenanzahl. Fortschrittsberichte werden alle 5 Iterationen ausgegeben. Begrenzte Laeufe geben am Ende eine Zusammenfassung von Baseline bis Bestwert aus.
 
