@@ -449,7 +449,7 @@ Recovery priority:
 1. **JSON + TSV summary consistent, launch manifest present:** resume immediately, skip wizard
 2. **JSON valid, helper reports mismatch:** mini-wizard (1 round) to re-confirm
 3. **JSON missing or corrupt, TSV exists:** helper reconstructs retained state for confirmation, then continue with a fresh launch manifest
-4. **Neither exists:** fresh start (old logs renamed)
+4. **Neither exists:** fresh start (prior persistent run-control artifacts archived)
 
 See `references/session-resume-protocol.md`.
 

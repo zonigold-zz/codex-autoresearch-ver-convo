@@ -2873,7 +2873,30 @@ class AutoresearchScriptsTest(unittest.TestCase):
                 encoding="utf-8",
             )
             old_runtime.write_text(
-                json.dumps({"status": "terminal", "pid": 12345}, indent=2) + "\n",
+                json.dumps(
+                    {
+                        "version": 1,
+                        "repo": str(tmpdir),
+                        "launch_path": str(old_launch),
+                        "results_path": str(old_results),
+                        "state_path": str(old_state),
+                        "log_path": str(old_runtime_log),
+                        "status": "terminal",
+                        "terminal_reason": "completed",
+                        "pid": 12345,
+                        "pgid": None,
+                        "command": [],
+                        "requested_stop_at": None,
+                        "last_decision": "stop",
+                        "last_reason": "completed",
+                        "last_seen_iteration": 0,
+                        "last_seen_status": "baseline",
+                        "created_at": "2026-03-21T00:00:00Z",
+                        "updated_at": "2026-03-21T00:00:00Z",
+                    },
+                    indent=2,
+                )
+                + "\n",
                 encoding="utf-8",
             )
             old_runtime_log.write_text("old runtime log\n", encoding="utf-8")
@@ -2933,7 +2956,30 @@ class AutoresearchScriptsTest(unittest.TestCase):
             (repo / "autoresearch-state.json").write_text("{}\n", encoding="utf-8")
             (repo / "autoresearch-launch.json").write_text("{}\n", encoding="utf-8")
             (repo / "autoresearch-runtime.json").write_text(
-                json.dumps({"status": "terminal", "pid": 12345}, indent=2) + "\n",
+                json.dumps(
+                    {
+                        "version": 1,
+                        "repo": str(repo),
+                        "launch_path": str(repo / "autoresearch-launch.json"),
+                        "results_path": str(repo / "research-results.tsv"),
+                        "state_path": str(repo / "autoresearch-state.json"),
+                        "log_path": str(repo / "autoresearch-runtime.log"),
+                        "status": "terminal",
+                        "terminal_reason": "completed",
+                        "pid": 12345,
+                        "pgid": None,
+                        "command": [],
+                        "requested_stop_at": None,
+                        "last_decision": "stop",
+                        "last_reason": "completed",
+                        "last_seen_iteration": 0,
+                        "last_seen_status": "baseline",
+                        "created_at": "2026-03-21T00:00:00Z",
+                        "updated_at": "2026-03-21T00:00:00Z",
+                    },
+                    indent=2,
+                )
+                + "\n",
                 encoding="utf-8",
             )
 
@@ -3030,6 +3076,79 @@ class AutoresearchScriptsTest(unittest.TestCase):
             finally:
                 sleeper.terminate()
                 sleeper.wait()
+
+    def test_runtime_launch_fresh_start_blocks_on_invalid_runtime_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmpdir = Path(tmp)
+            fake_codex_path = tmpdir / "fake-codex"
+            self.write_sleeping_fake_codex(fake_codex_path)
+
+            runtime_path = tmpdir / "autoresearch-runtime.json"
+            runtime_path.write_text("{bad json", encoding="utf-8")
+
+            completed = self.run_script_completed(
+                "autoresearch_runtime_ctl.py",
+                "launch",
+                "--fresh-start",
+                "--repo",
+                str(tmpdir),
+                "--original-goal",
+                "New goal",
+                "--mode",
+                "loop",
+                "--goal",
+                "Reduce failures",
+                "--scope",
+                "src/**/*.py",
+                "--metric-name",
+                "failure count",
+                "--direction",
+                "lower",
+                "--verify",
+                "python3 -c pass",
+                "--guard",
+                "python -m py_compile src",
+                "--codex-bin",
+                str(fake_codex_path),
+            )
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("Invalid JSON", completed.stderr)
+            self.assertTrue(runtime_path.exists())
+            self.assertFalse((tmpdir / "autoresearch-runtime.prev.json").exists())
+
+    def test_runtime_status_reports_invalid_runtime_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmpdir = Path(tmp)
+            runtime_path = tmpdir / "autoresearch-runtime.json"
+            runtime_path.write_text("{bad json", encoding="utf-8")
+
+            status = self.run_script(
+                "autoresearch_runtime_ctl.py",
+                "status",
+                "--repo",
+                str(tmpdir),
+            )
+            self.assertEqual(status["status"], "needs_human")
+            self.assertEqual(status["reason"], "invalid_runtime_state")
+            self.assertIn("Invalid JSON", status["error"])
+            self.assertEqual(status["runtime_path"], str(runtime_path.resolve()))
+
+    def test_runtime_stop_reports_invalid_runtime_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmpdir = Path(tmp)
+            runtime_path = tmpdir / "autoresearch-runtime.json"
+            runtime_path.write_text("{bad json", encoding="utf-8")
+
+            stopped = self.run_script(
+                "autoresearch_runtime_ctl.py",
+                "stop",
+                "--repo",
+                str(tmpdir),
+            )
+            self.assertEqual(stopped["status"], "needs_human")
+            self.assertEqual(stopped["reason"], "invalid_runtime_state")
+            self.assertIn("Invalid JSON", stopped["error"])
+            self.assertEqual(stopped["runtime_path"], str(runtime_path.resolve()))
 
     def test_runtime_stop_appends_summary_lesson_when_state_exists(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

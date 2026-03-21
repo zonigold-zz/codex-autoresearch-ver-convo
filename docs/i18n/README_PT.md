@@ -437,11 +437,11 @@ Consulte `references/parallel-experiments-protocol.md`.
 
 ## Retomada de sessao
 
-Se o Codex detectar uma execucao gerenciada anteriormente interrompida em modo interativo, ele pode retomar do ultimo estado consistente em vez de comecar do zero. A fonte de recuperacao principal e `autoresearch-state.json`, um snapshot de estado compacto atualizado atomicamente a cada iteracao. No modo `exec`, o estado existe apenas em um arquivo temporario sob `/tmp/codex-autoresearch-exec/...` e e removido antes de sair. A retomada direta na runtime desacoplada exige um `autoresearch-launch.json` ja existente; se esse estado de lancamento confirmado estiver ausente, use o fluxo normal de lancamento para iniciar um novo run.
+Se o Codex detectar uma execucao gerenciada anteriormente interrompida em modo interativo, ele pode retomar do ultimo estado consistente em vez de comecar do zero. A fonte de recuperacao principal e `autoresearch-state.json`, um snapshot de estado compacto atualizado atomicamente a cada iteracao. No modo `exec`, o estado existe apenas em um arquivo temporario sob `/tmp/codex-autoresearch-exec/...` e e removido antes de sair. A retomada direta pelo controlador de execucao desacoplado exige um `autoresearch-launch.json` ja existente; se esse estado de lancamento confirmado estiver ausente, use o fluxo normal de lancamento para iniciar um novo run.
 
 Prioridade de recuperacao para modos interativos:
 
-1. **JSON + TSV consistentes, com launch manifest presente:** retomada imediata, assistente ignorado
+1. **JSON + TSV consistentes, com manifesto de lancamento presente:** retomada imediata, assistente ignorado
 2. **JSON valido, TSV inconsistente:** mini-assistente (1 rodada de confirmacao)
 3. **JSON ausente ou corrompido, TSV presente:** o helper reconstrui o estado retido para confirmacao e depois continua com um novo launch manifest
 4. **Nenhum presente:** inicio limpo (logs antigos renomeados)
@@ -532,7 +532,7 @@ Os comandos diretos de controle continuam disponiveis para scripting ou depuraca
 
 | Preocupacao | Como e tratada |
 |-------------|----------------|
-| Diretorio de trabalho sujo | O preflight do runtime bloqueia inicio ou relancamento ate que mudancas fora do escopo sejam limpas ou isoladas |
+| Diretorio de trabalho sujo | O preflight do runtime bloqueia inicio ou relancamento ate que mudancas fora da area definida sejam limpas ou isoladas |
 | Alteracao com falha | Usa a estrategia de rollback aprovada antes do inicio: `git reset --hard HEAD~1` apenas em branch/worktree experimental isolado e aprovado; caso contrario usa `git revert --no-edit HEAD`; o registro de resultados continua sendo a trilha de auditoria |
 | Falha do Guard | Ate 2 tentativas de reajuste, depois reverte |
 | Erro de sintaxe | Correcao imediata, nao conta como iteracao |
@@ -575,10 +575,10 @@ codex-autoresearch/
       README_RU.md                  # russo
   scripts/
     validate_skill_structure.sh     # structure validator
-    autoresearch_helpers.py         # shared TSV / JSON / runtime helpers
-    autoresearch_launch_gate.py     # decide fresh / resumable / needs_human before launch
-    autoresearch_resume_prompt.py   # build the runtime-managed prompt from saved config
-    autoresearch_runtime_ctl.py     # launch / create-launch / start / status / stop runtime controller
+    autoresearch_helpers.py         # utilitarios compartilhados para TSV / JSON / runtime
+    autoresearch_launch_gate.py     # decide fresh / resumable / needs_human antes do lancamento
+    autoresearch_resume_prompt.py   # monta o prompt gerenciado pelo runtime a partir da configuracao salva
+    autoresearch_runtime_ctl.py     # controla launch / create-launch / start / status / stop do runtime
     autoresearch_commit_gate.py     # git / artifact / rollback gate
     autoresearch_decision.py        # structured keep / discard / crash policy helpers
     autoresearch_health_check.py    # executable health checks
@@ -628,7 +628,7 @@ codex-autoresearch/
 
 **Quantas iteracoes?** Depende da tarefa. 5 para correcoes direcionadas, 10-20 para exploracao, ilimitadas para execucoes noturnas.
 
-**Ele aprende entre execucoes?** Sim. As licoes sao extraidas apos cada `keep`, apos cada `pivot` e no fim da runtime quando nao existe licao recente. O arquivo de licoes persiste entre sessoes; `exec` apenas le as licoes existentes.
+**Ele aprende entre execucoes?** Sim. As licoes sao extraidas apos cada `keep`, apos cada `pivot` e no fim da execucao gerenciada quando nao existe licao recente. O arquivo de licoes persiste entre sessoes; `exec` apenas le as licoes existentes.
 
 **Pode retomar apos uma interrupcao?** Sim, para execucoes gerenciadas que ja tenham `autoresearch-launch.json`, `research-results.tsv` e `autoresearch-state.json`. Se o estado de lancamento confirmado estiver ausente, inicie um novo run pelo fluxo normal de lancamento.
 

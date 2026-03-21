@@ -71,13 +71,19 @@ def load_runtime_if_exists(runtime_path: Path) -> dict[str, Any] | None:
     return read_runtime_payload(runtime_path)
 
 
-def ensure_runtime_not_running(runtime_path: Path, *, tolerate_invalid: bool = False) -> None:
+def load_runtime_with_error(runtime_path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    if not runtime_path.exists():
+        return None, None
     try:
-        existing = load_runtime_if_exists(runtime_path)
-    except AutoresearchError:
-        if tolerate_invalid:
-            return
-        raise
+        return read_runtime_payload(runtime_path), None
+    except AutoresearchError as exc:
+        return None, str(exc)
+
+
+def ensure_runtime_not_running(runtime_path: Path) -> None:
+    existing, runtime_error = load_runtime_with_error(runtime_path)
+    if runtime_error is not None:
+        raise AutoresearchError(runtime_error)
     if existing is not None and pid_is_alive(existing.get("pid")):
         raise AutoresearchError("An autoresearch runtime is already running for this repo.")
 
@@ -142,8 +148,20 @@ def runtime_summary(
     launch_path: Path,
     runtime_path: Path,
 ) -> dict[str, Any]:
-    runtime = load_runtime_if_exists(runtime_path)
+    runtime, runtime_error = load_runtime_with_error(runtime_path)
     resolved_state_path = resolve_state_path_for_log(state_path_arg, None, cwd=repo)
+
+    if runtime_error is not None:
+        return {
+            "status": "needs_human",
+            "runtime_path": str(runtime_path),
+            "log_path": "",
+            "reason": "invalid_runtime_state",
+            "error": runtime_error,
+            "launch_path": str(launch_path),
+            "results_path": str(results_path),
+            "state_path": str(resolved_state_path),
+        }
 
     if runtime is not None and pid_is_alive(runtime.get("pid")):
         return {
@@ -420,7 +438,7 @@ def launch_and_start_runtime(args: argparse.Namespace) -> dict[str, Any]:
     launch_path = resolve_repo_relative(repo, args.launch_path, default_launch_manifest_path(repo))
     runtime_path = resolve_repo_relative(repo, args.runtime_path, default_runtime_state_path(repo))
     log_path = resolve_repo_relative(repo, args.log_path, default_runtime_log_path(repo))
-    ensure_runtime_not_running(runtime_path, tolerate_invalid=args.fresh_start)
+    ensure_runtime_not_running(runtime_path)
     if args.fresh_start:
         results_path = resolve_repo_relative(repo, args.results_path, repo / DEFAULT_RESULTS_PATH)
         archived_paths = archive_interactive_fresh_start_artifacts(
@@ -570,7 +588,14 @@ def run_runtime(args: argparse.Namespace) -> int:
 def stop_runtime(args: argparse.Namespace) -> dict[str, Any]:
     repo = resolve_repo_path(args.repo)
     runtime_path = resolve_repo_relative(repo, args.runtime_path, default_runtime_state_path(repo))
-    runtime = load_runtime_if_exists(runtime_path)
+    runtime, runtime_error = load_runtime_with_error(runtime_path)
+    if runtime_error is not None:
+        return {
+            "status": "needs_human",
+            "runtime_path": str(runtime_path),
+            "reason": "invalid_runtime_state",
+            "error": runtime_error,
+        }
     if runtime is None:
         raise AutoresearchError(f"No runtime file found at {runtime_path}")
 

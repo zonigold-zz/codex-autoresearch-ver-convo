@@ -437,7 +437,7 @@ security + fix               # 監査と修復を一度に実施
 
 ## セッション再開
 
-Codex がインタラクティブモードで以前中断された管理対象 run を検出した場合、最初からやり直す代わりに最後の一貫した状態から再開できます。主要な回復ソースは `autoresearch-state.json` で、各イテレーションでアトミックに更新されるコンパクトな状態スナップショットです。`exec` モードでは状態は `/tmp/codex-autoresearch-exec/...` 配下の一時ファイルにのみ保持され、終了前に削除されます。分離された runtime が直接再開するには、既存の `autoresearch-launch.json` が必要です。この確認済み launch state がない場合は、通常の launch フローから新しく開始します。
+Codex がインタラクティブモードで以前中断された管理対象 run を検出した場合、最初からやり直す代わりに最後の一貫した状態から再開できます。主要な回復ソースは `autoresearch-state.json` で、各イテレーションでアトミックに更新されるコンパクトな状態スナップショットです。`exec` モードでは状態は `/tmp/codex-autoresearch-exec/...` 配下の一時ファイルにのみ保持され、終了前に削除されます。分離された実行コントローラが直接再開するには、既存の `autoresearch-launch.json` が必要です。この確認済みの起動マニフェストがない場合は、通常の起動フローから新しく開始します。
 
 回復優先度（インタラクティブモード）：
 
@@ -532,7 +532,7 @@ iteration  commit   metric  delta   status    description
 
 | 懸念事項 | 対処方法 |
 |----------|----------|
-| ダーティなワークツリー | runtime の事前チェックが、スコープ外変更をクリーンアップまたは隔離するまで起動と再起動をブロック |
+| ダーティなワークツリー | runtime の事前チェックが、対象範囲外の変更をクリーンアップまたは隔離するまで起動と再起動をブロック |
 | 失敗した変更 | 起動前に承認されたロールバック戦略を使用。隔離された実験ブランチ/ワークツリーで承認済みなら `git reset --hard HEAD~1`、それ以外は `git revert --no-edit HEAD`。結果ログが監査証跡 |
 | Guard の失敗 | 最大2回の再調整後にロールバック |
 | 構文エラー | 即座に修正。反復としてカウントしない |
@@ -575,10 +575,10 @@ codex-autoresearch/
       README_RU.md                  # ロシア語
   scripts/
     validate_skill_structure.sh     # structure validator
-    autoresearch_helpers.py         # shared TSV / JSON / runtime helpers
-    autoresearch_launch_gate.py     # decide fresh / resumable / needs_human before launch
-    autoresearch_resume_prompt.py   # build the runtime-managed prompt from saved config
-    autoresearch_runtime_ctl.py     # launch / create-launch / start / status / stop runtime controller
+    autoresearch_helpers.py         # TSV / JSON / runtime を扱う共通ヘルパー
+    autoresearch_launch_gate.py     # 起動前に fresh / resumable / needs_human を判定
+    autoresearch_resume_prompt.py   # 保存済み設定から runtime 管理用のプロンプトを組み立てる
+    autoresearch_runtime_ctl.py     # runtime の launch / create-launch / start / status / stop を制御
     autoresearch_commit_gate.py     # git / artifact / rollback gate
     autoresearch_decision.py        # structured keep / discard / crash policy helpers
     autoresearch_health_check.py    # executable health checks
@@ -628,7 +628,7 @@ codex-autoresearch/
 
 **何回反復する？** タスクによります。的を絞った修正は 5 回、探索的なものは 10-20 回、一晩の実行は無制限です。
 
-**実行間で学習する？** はい。教訓は各 `keep`、各 `pivot`、そして最近の教訓がないまま runtime が終了した時に抽出されます。教訓ファイルはセッション間で保持されます。`exec` は既存の教訓を読むだけで、新しい教訓は書き込みません。
+**実行間で学習する？** はい。教訓は各 `keep`、各 `pivot`、そして最近の教訓がないまま管理対象の実行が終了した時に抽出されます。教訓ファイルはセッション間で保持されます。`exec` は既存の教訓を読むだけで、新しい教訓は書き込みません。
 
 **中断後に再開できる？** はい。ただし `autoresearch-launch.json`、`research-results.tsv`、`autoresearch-state.json` がそろった管理対象 run に限ります。確認済みの launch state がない場合は、通常の launch フローから新しく開始してください。
 

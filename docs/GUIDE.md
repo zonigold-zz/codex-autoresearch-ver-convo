@@ -72,7 +72,7 @@ This boundary is absolute at the skill level. Everything before "go" can ask. Ev
 
 ## The Iteration Cycle
 
-Every iterating mode (loop, debug, fix, security) shares the same cycle:
+Every iterating mode (loop, debug, fix, security, ship) shares the same cycle:
 
 ```
   Pick hypothesis  -->  Edit files  -->  git commit  -->  Run verify + guard

@@ -437,7 +437,7 @@ security + fix               # 감사와 수정을 한 번에 수행
 
 ## 세션 재개
 
-Codex가 인터랙티브 모드에서 이전에 중단된 관리형 run 을 감지하면 처음부터 다시 시작하는 대신 마지막 일관된 상태에서 재개할 수 있습니다. 주요 복구 소스는 `autoresearch-state.json`으로, 각 반복마다 원자적으로 업데이트되는 컴팩트한 상태 스냅샷입니다. `exec` 모드에서는 상태가 `/tmp/codex-autoresearch-exec/...` 아래의 임시 파일에만 존재하며 종료 전에 정리됩니다. 분리된 runtime 이 직접 재개하려면 기존 `autoresearch-launch.json` 이 있어야 하며, 이 확인된 launch state 가 없으면 일반 launch 흐름으로 새로 시작해야 합니다.
+Codex가 인터랙티브 모드에서 이전에 중단된 관리형 run 을 감지하면 처음부터 다시 시작하는 대신 마지막 일관된 상태에서 재개할 수 있습니다. 주요 복구 소스는 `autoresearch-state.json`으로, 각 반복마다 원자적으로 업데이트되는 컴팩트한 상태 스냅샷입니다. `exec` 모드에서는 상태가 `/tmp/codex-autoresearch-exec/...` 아래의 임시 파일에만 존재하며 종료 전에 정리됩니다. 분리된 런타임 컨트롤러가 직접 재개하려면 기존 `autoresearch-launch.json` 이 있어야 하며, 이 확인된 시작 매니페스트가 없으면 일반 launch 흐름으로 새로 시작해야 합니다.
 
 복구 우선순위(인터랙티브 모드):
 
@@ -532,7 +532,7 @@ iteration  commit   metric  delta   status    description
 
 | 우려 사항 | 처리 방식 |
 |-----------|-----------|
-| 더티 워크트리 | runtime 사전 점검이 scope 밖 변경이 정리되거나 격리될 때까지 시작과 재시작을 차단 |
+| 더티 워크트리 | runtime 사전 점검이 범위 밖 변경이 정리되거나 격리될 때까지 시작과 재시작을 차단 |
 | 실패한 변경 | 시작 전에 승인된 롤백 전략을 사용합니다. 격리된 실험 브랜치/워크트리에서 승인된 경우 `git reset --hard HEAD~1`, 그 외에는 `git revert --no-edit HEAD`를 사용합니다. 결과 로그가 감사 추적입니다 |
 | Guard 실패 | 최대 2회 재조정 후 롤백 |
 | 구문 오류 | 즉시 수정. 반복으로 카운트하지 않음 |
@@ -575,10 +575,10 @@ codex-autoresearch/
       README_RU.md                  # 러시아어
   scripts/
     validate_skill_structure.sh     # structure validator
-    autoresearch_helpers.py         # shared TSV / JSON / runtime helpers
-    autoresearch_launch_gate.py     # decide fresh / resumable / needs_human before launch
-    autoresearch_resume_prompt.py   # build the runtime-managed prompt from saved config
-    autoresearch_runtime_ctl.py     # launch / create-launch / start / status / stop runtime controller
+    autoresearch_helpers.py         # TSV / JSON / runtime 을 다루는 공용 헬퍼
+    autoresearch_launch_gate.py     # 시작 전에 fresh / resumable / needs_human 을 판정
+    autoresearch_resume_prompt.py   # 저장된 설정에서 runtime 관리용 프롬프트를 만든다
+    autoresearch_runtime_ctl.py     # runtime 의 launch / create-launch / start / status / stop 을 제어
     autoresearch_commit_gate.py     # git / artifact / rollback gate
     autoresearch_decision.py        # structured keep / discard / crash policy helpers
     autoresearch_health_check.py    # executable health checks
@@ -628,7 +628,7 @@ codex-autoresearch/
 
 **몇 번 반복하나요?** 작업에 따라 다릅니다. 타겟 수정은 5회, 탐색적인 것은 10-20회, 야간 실행은 무제한입니다.
 
-**실행 간에 학습하나요?** 예. 교훈은 각 `keep`, 각 `pivot`, 그리고 최근 교훈이 없는 상태로 runtime 이 종료될 때 추출됩니다. 교훈 파일은 세션 간에 유지됩니다. `exec` 는 기존 교훈만 읽고 새 교훈은 쓰지 않습니다.
+**실행 간에 학습하나요?** 예. 교훈은 각 `keep`, 각 `pivot`, 그리고 최근 교훈이 없는 상태로 관리형 실행이 종료될 때 추출됩니다. 교훈 파일은 세션 간에 유지됩니다. `exec` 는 기존 교훈만 읽고 새 교훈은 쓰지 않습니다.
 
 **중단 후 재개할 수 있나요?** 예. 다만 `autoresearch-launch.json`, `research-results.tsv`, `autoresearch-state.json` 이 이미 있는 관리형 run 이어야 합니다. 확인된 launch state 가 없으면 일반 launch 흐름으로 새 run 을 시작하세요.
 

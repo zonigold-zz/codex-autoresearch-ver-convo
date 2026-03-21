@@ -100,6 +100,21 @@ def evaluate_launch_context(
             "reasons": reasons,
         }
 
+    if runtime_error is not None:
+        return {
+            "decision": "needs_human",
+            "reason": "invalid_runtime_state",
+            "resume_strategy": "none",
+            "results_path": str(results_path),
+            "state_path": str(state_path),
+            "launch_path": str(launch_path),
+            "runtime_path": str(runtime_path),
+            "launch_manifest_present": launch_manifest is not None,
+            "runtime_present": True,
+            "runtime_running": False,
+            "reasons": reasons,
+        }
+
     if resume["decision"] == "fresh_start":
         strategy = "launch_manifest_ready" if launch_manifest is not None else "cold_start"
         reason = (

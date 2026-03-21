@@ -437,7 +437,7 @@ Siehe `references/parallel-experiments-protocol.md`.
 
 ## Sitzungswiederaufnahme
 
-Wenn Codex in einem interaktiven Modus einen zuvor unterbrochenen verwalteten Lauf erkennt, kann es vom letzten konsistenten Zustand fortfahren, anstatt von vorne zu beginnen. Die primaere Wiederherstellungsquelle ist `autoresearch-state.json`, ein kompakter Zustandssnapshot, der bei jeder Iteration atomar aktualisiert wird. Im Modus `exec` liegt der Zustand nur in einer temporaeren Datei unter `/tmp/codex-autoresearch-exec/...` und wird vor dem Beenden entfernt. Eine direkte Wiederaufnahme unter der entkoppelten Runtime setzt ein vorhandenes `autoresearch-launch.json` voraus; ohne dieses bestaetigte Start-Manifest folgt der Lauf dem normalen Startfluss.
+Wenn Codex in einem interaktiven Modus einen zuvor unterbrochenen verwalteten Lauf erkennt, kann es vom letzten konsistenten Zustand fortfahren, anstatt von vorne zu beginnen. Die primaere Wiederherstellungsquelle ist `autoresearch-state.json`, ein kompakter Zustandssnapshot, der bei jeder Iteration atomar aktualisiert wird. Im Modus `exec` liegt der Zustand nur in einer temporaeren Datei unter `/tmp/codex-autoresearch-exec/...` und wird vor dem Beenden entfernt. Eine direkte Wiederaufnahme ueber den entkoppelten Laufzeit-Controller setzt ein vorhandenes `autoresearch-launch.json` voraus; ohne dieses bestaetigte Start-Manifest folgt der Lauf dem normalen Startfluss.
 
 Wiederherstellungsprioritaet fuer interaktive Modi:
 
@@ -532,7 +532,7 @@ Direkte Steuerbefehle bleiben fuer Skripting oder das Debugging der Laufzeit ver
 
 | Bedenken | Behandlung |
 |----------|------------|
-| Unsauberer Arbeitsbaum | Die Laufzeit-Vorpruefung blockiert Start oder Relaunch, bis scope-fremde Aenderungen bereinigt oder isoliert sind |
+| Unsauberer Arbeitsbaum | Die Laufzeit-Vorpruefung blockiert Start oder Relaunch, bis Aenderungen ausserhalb des vorgesehenen Bereichs bereinigt oder isoliert sind |
 | Fehlgeschlagene Aenderung | Verwendet die vor dem Start genehmigte Rollback-Strategie: `git reset --hard HEAD~1` nur in einem isolierten Experiment-Branch/Worktree mit Genehmigung, sonst `git revert --no-edit HEAD`; das Ergebnisprotokoll bleibt der Audit-Trail |
 | Guard-Fehlschlag | Bis zu 2 Ueberarbeitungsversuche, dann Zuruecksetzen |
 | Syntaxfehler | Sofortige automatische Korrektur, zaehlt nicht als Iteration |
@@ -575,10 +575,10 @@ codex-autoresearch/
       README_RU.md                  # Russisch
   scripts/
     validate_skill_structure.sh     # structure validator
-    autoresearch_helpers.py         # shared TSV / JSON / runtime helpers
-    autoresearch_launch_gate.py     # decide fresh / resumable / needs_human before launch
-    autoresearch_resume_prompt.py   # build the runtime-managed prompt from saved config
-    autoresearch_runtime_ctl.py     # launch / create-launch / start / status / stop runtime controller
+    autoresearch_helpers.py         # gemeinsame Hilfsskripte fuer TSV / JSON / Laufzeit
+    autoresearch_launch_gate.py     # entscheidet vor dem Start zwischen fresh / resumable / needs_human
+    autoresearch_resume_prompt.py   # baut den vom Laufzeit-Controller verwendeten Prompt aus der gespeicherten Konfiguration
+    autoresearch_runtime_ctl.py     # steuert launch / create-launch / start / status / stop des Laufzeit-Controllers
     autoresearch_commit_gate.py     # git / artifact / rollback gate
     autoresearch_decision.py        # structured keep / discard / crash policy helpers
     autoresearch_health_check.py    # executable health checks
@@ -628,7 +628,7 @@ codex-autoresearch/
 
 **Wie viele Iterationen?** Haengt von der Aufgabe ab. 5 fuer gezielte Korrekturen, 10-20 fuer Exploration, unbegrenzt fuer Nachtlaeufe.
 
-**Lernt es ueber Laeufe hinweg?** Ja. Erkenntnisse werden nach jedem `keep`, nach jedem `pivot` und bei Runtime-Abschluss ohne aktuelle Erkenntnis extrahiert. Die Erkenntnisdatei bleibt ueber Sitzungen hinweg erhalten; `exec` liest nur vorhandene Erkenntnisse.
+**Lernt es ueber Laeufe hinweg?** Ja. Erkenntnisse werden nach jedem `keep`, nach jedem `pivot` und beim Abschluss der Laufzeit ohne aktuelle Erkenntnis extrahiert. Die Erkenntnisdatei bleibt ueber Sitzungen hinweg erhalten; `exec` liest nur vorhandene Erkenntnisse.
 
 **Kann es nach einer Unterbrechung fortfahren?** Ja, sofern es sich um einen verwalteten Lauf mit `autoresearch-launch.json`, `research-results.tsv` und `autoresearch-state.json` handelt. Fehlt der bestaetigte Startzustand, beginnen Sie ueber den normalen Startfluss neu.
 

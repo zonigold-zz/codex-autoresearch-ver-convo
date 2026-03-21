@@ -438,11 +438,11 @@ Voir `references/parallel-experiments-protocol.md`.
 
 ## Reprise de session
 
-Si Codex detecte une execution geree precedemment interrompue en mode interactif, il peut reprendre depuis le dernier etat coherent au lieu de recommencer. La source de recuperation principale est `autoresearch-state.json`, un instantane d'etat compact mis a jour atomiquement a chaque iteration. En mode `exec`, l'etat n'existe que dans un fichier temporaire sous `/tmp/codex-autoresearch-exec/...` puis est nettoye avant la sortie. La reprise directe sous la runtime detachee exige un `autoresearch-launch.json` deja present ; si cet etat de lancement confirme manque, il faut repasser par le flux normal de lancement.
+Si Codex detecte une execution geree precedemment interrompue en mode interactif, il peut reprendre depuis le dernier etat coherent au lieu de recommencer. La source de recuperation principale est `autoresearch-state.json`, un instantane d'etat compact mis a jour atomiquement a chaque iteration. En mode `exec`, l'etat n'existe que dans un fichier temporaire sous `/tmp/codex-autoresearch-exec/...` puis est nettoye avant la sortie. La reprise directe via le controleur d'execution detache exige un `autoresearch-launch.json` deja present ; si cet etat de lancement confirme manque, il faut repasser par le flux normal de lancement.
 
 Priorite de recuperation en mode interactif :
 
-1. **JSON + TSV coherents, launch manifest present :** reprise immediate, assistant saute
+1. **JSON + TSV coherents, manifeste de lancement present :** reprise immediate, assistant saute
 2. **JSON valide, TSV incoherent :** mini-assistant (1 tour de confirmation)
 3. **JSON absent ou corrompu, TSV present :** le helper reconstruit l'etat retenu pour confirmation puis continue avec un nouveau launch manifest
 4. **Aucun des deux :** nouveau depart (anciens journaux renommes)
@@ -533,7 +533,7 @@ Les commandes directes de pilotage restent disponibles pour le scripting ou le d
 
 | Preoccupation | Traitement |
 |---------------|------------|
-| Arbre de travail sale | Le preflight runtime bloque le lancement ou le relancement tant que les changements hors scope ne sont pas nettoyes ou isoles |
+| Arbre de travail sale | Le preflight runtime bloque le lancement ou le relancement tant que les changements hors perimetre ne sont pas nettoyes ou isoles |
 | Changement echoue | Utilise la strategie de rollback approuvee avant le lancement : `git reset --hard HEAD~1` seulement dans une branche/worktree d'experience isolee et approuvee, sinon `git revert --no-edit HEAD` ; le journal des resultats reste la trace d'audit |
 | Echec du Guard | Jusqu'a 2 tentatives de correction, puis annulation |
 | Erreur de syntaxe | Correction automatique immediate, ne compte pas comme iteration |
@@ -576,10 +576,10 @@ codex-autoresearch/
       README_RU.md                  # russe
   scripts/
     validate_skill_structure.sh     # structure validator
-    autoresearch_helpers.py         # shared TSV / JSON / runtime helpers
-    autoresearch_launch_gate.py     # decide fresh / resumable / needs_human before launch
-    autoresearch_resume_prompt.py   # build the runtime-managed prompt from saved config
-    autoresearch_runtime_ctl.py     # launch / create-launch / start / status / stop runtime controller
+    autoresearch_helpers.py         # utilitaires partages pour TSV / JSON / runtime
+    autoresearch_launch_gate.py     # decide fresh / resumable / needs_human avant le lancement
+    autoresearch_resume_prompt.py   # construit le prompt pilote par le runtime a partir de la configuration enregistree
+    autoresearch_runtime_ctl.py     # pilote launch / create-launch / start / status / stop du runtime
     autoresearch_commit_gate.py     # git / artifact / rollback gate
     autoresearch_decision.py        # structured keep / discard / crash policy helpers
     autoresearch_health_check.py    # executable health checks
@@ -629,7 +629,7 @@ codex-autoresearch/
 
 **Combien d'iterations ?** Cela depend de la tache. 5 pour les corrections ciblees, 10-20 pour l'exploration, illimite pour les executions de nuit.
 
-**Apprend-il d'une execution a l'autre ?** Oui. Les lecons sont extraites apres chaque `keep`, apres chaque `pivot` et a la fin de la runtime lorsqu'aucune lecon recente n'existe. Le fichier de lecons persiste entre les sessions ; `exec` ne fait que lire les lecons existantes.
+**Apprend-il d'une execution a l'autre ?** Oui. Les lecons sont extraites apres chaque `keep`, apres chaque `pivot` et a la fin de l'execution geree lorsqu'aucune lecon recente n'existe. Le fichier de lecons persiste entre les sessions ; `exec` ne fait que lire les lecons existantes.
 
 **Peut-il reprendre apres une interruption ?** Oui, pour les executions gerees qui ont deja `autoresearch-launch.json`, `research-results.tsv` et `autoresearch-state.json`. Si l'etat de lancement confirme manque, relancez un nouveau run via le flux normal de lancement.
 
