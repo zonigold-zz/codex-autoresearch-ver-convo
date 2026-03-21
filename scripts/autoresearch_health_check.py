@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shlex
 import shutil
 from pathlib import Path
@@ -30,8 +31,10 @@ def verify_command_exists(command: str) -> bool:
     if not parts:
         return False
     executable = parts[0]
-    if executable in {"bash", "sh", "python", "python3"}:
-        return True
+
+    candidate = Path(executable)
+    if candidate.is_absolute() or "/" in executable or "\\" in executable:
+        return candidate.is_file() and os.access(candidate, os.X_OK)
     return shutil.which(executable) is not None
 
 

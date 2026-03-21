@@ -3,29 +3,16 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 from pathlib import Path
 from typing import Any
 
 from autoresearch_helpers import (
     AutoresearchError,
-    git_status_paths,
+    git_status_entries,
     is_autoresearch_owned_artifact,
     parse_scope_patterns,
     path_is_in_scope,
 )
-
-
-def git_lines(repo: Path, *args: str) -> list[str]:
-    completed = subprocess.run(
-        ["git", "-C", str(repo), *args],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if completed.returncode != 0:
-        raise AutoresearchError(completed.stderr.strip() or f"git {' '.join(args)} failed")
-    return [line.rstrip() for line in completed.stdout.splitlines() if line.strip()]
 def evaluate_commit_gate(
     *,
     repo: Path,
@@ -34,8 +21,7 @@ def evaluate_commit_gate(
     destructive_approved: bool,
     scope_text: str | None = None,
 ) -> dict[str, Any]:
-    status_lines = git_status_paths(repo)
-    staged_files = git_lines(repo, "diff", "--cached", "--name-only")
+    status_entries = git_status_entries(repo)
     unexpected_worktree = []
     staged_artifacts = []
     scope_patterns = parse_scope_patterns(scope_text)
@@ -45,13 +31,12 @@ def evaluate_commit_gate(
         "prebatch": "before parallel batch",
     }
 
-    for raw_path in status_lines:
-        if not is_autoresearch_owned_artifact(raw_path) and not path_is_in_scope(raw_path, scope_patterns):
-            unexpected_worktree.append(raw_path)
-
-    for path in staged_files:
-        if is_autoresearch_owned_artifact(path):
-            staged_artifacts.append(path)
+    for entry in status_entries:
+        for raw_path in entry.touched_paths:
+            if not is_autoresearch_owned_artifact(raw_path) and not path_is_in_scope(raw_path, scope_patterns):
+                unexpected_worktree.append(raw_path)
+            if entry.has_staged_change and is_autoresearch_owned_artifact(raw_path):
+                staged_artifacts.append(raw_path)
 
     blockers: list[str] = []
     warnings: list[str] = []

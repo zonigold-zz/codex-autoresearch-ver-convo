@@ -118,6 +118,28 @@ class ParsedLog:
         return [row for row in self.rows if row.worker_parent_iteration is not None]
 
 
+@dataclass(frozen=True)
+class GitStatusEntry:
+    status: str
+    paths: tuple[str, ...]
+
+    @property
+    def staged_code(self) -> str:
+        return self.status[0] if self.status else " "
+
+    @property
+    def unstaged_code(self) -> str:
+        return self.status[1] if len(self.status) > 1 else " "
+
+    @property
+    def has_staged_change(self) -> bool:
+        return self.staged_code not in {" ", "?"}
+
+    @property
+    def touched_paths(self) -> tuple[str, ...]:
+        return self.paths
+
+
 def parse_decimal(value: Any, field_name: str = "metric") -> Decimal:
     try:
         return Decimal(str(value))
@@ -381,7 +403,7 @@ def cleanup_exec_state(cwd: Path | None = None) -> tuple[Path, bool]:
     return state_path, removed
 
 
-def git_status_paths(repo: Path) -> list[str]:
+def git_status_entries(repo: Path) -> list[GitStatusEntry]:
     completed = subprocess.run(
         [
             "git",
@@ -400,18 +422,25 @@ def git_status_paths(repo: Path) -> list[str]:
         raise AutoresearchError(stderr or "git status failed")
 
     entries = [entry for entry in completed.stdout.decode("utf-8", errors="replace").split("\0") if entry]
-    paths: list[str] = []
+    parsed_entries: list[GitStatusEntry] = []
     index = 0
     while index < len(entries):
         entry = entries[index]
-        path = entry[3:] if len(entry) > 3 else entry
         status = entry[:2]
-        paths.append(path)
+        paths = [entry[3:] if len(entry) > 3 else entry]
         if "R" in status or "C" in status:
             if index + 1 < len(entries):
                 paths.append(entries[index + 1])
             index += 1
+        parsed_entries.append(GitStatusEntry(status=status, paths=tuple(paths)))
         index += 1
+    return parsed_entries
+
+
+def git_status_paths(repo: Path) -> list[str]:
+    paths: list[str] = []
+    for entry in git_status_entries(repo):
+        paths.extend(entry.touched_paths)
     return paths
 
 

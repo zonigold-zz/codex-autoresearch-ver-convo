@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -17,26 +18,39 @@ class AutoresearchScriptsTest(unittest.TestCase):
     maxDiff = None
 
     def run_script_completed(
-        self, script_name: str, *args: str, cwd: Path | None = None
+        self,
+        script_name: str,
+        *args: str,
+        cwd: Path | None = None,
+        env: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, str(SCRIPTS_DIR / script_name), *args],
             capture_output=True,
             text=True,
             cwd=cwd,
+            env=env,
         )
 
     def run_script(
-        self, script_name: str, *args: str, cwd: Path | None = None
+        self,
+        script_name: str,
+        *args: str,
+        cwd: Path | None = None,
+        env: dict[str, str] | None = None,
     ) -> dict[str, object]:
-        completed = self.run_script_completed(script_name, *args, cwd=cwd)
+        completed = self.run_script_completed(script_name, *args, cwd=cwd, env=env)
         completed.check_returncode()
         return json.loads(completed.stdout)
 
     def run_script_text(
-        self, script_name: str, *args: str, cwd: Path | None = None
+        self,
+        script_name: str,
+        *args: str,
+        cwd: Path | None = None,
+        env: dict[str, str] | None = None,
     ) -> str:
-        completed = self.run_script_completed(script_name, *args, cwd=cwd)
+        completed = self.run_script_completed(script_name, *args, cwd=cwd, env=env)
         completed.check_returncode()
         return completed.stdout.strip()
 
@@ -3699,6 +3713,45 @@ class AutoresearchScriptsTest(unittest.TestCase):
             self.assertEqual(result["decision"], "block")
             self.assertIn("docs/old.txt", result["unexpected_worktree"])
 
+    def test_commit_gate_blocks_rename_from_artifact_source_into_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init", str(repo)], check=True, capture_output=True, text=True)
+            artifact = repo / "autoresearch-state.json"
+            src = repo / "src"
+            src.mkdir()
+            artifact.write_text("{}\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "-C", str(repo), "add", "autoresearch-state.json"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-m", "tracked artifact"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "mv", "autoresearch-state.json", "src/state.py"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            result = self.run_script(
+                "autoresearch_commit_gate.py",
+                "--repo",
+                str(repo),
+                "--phase",
+                "precommit",
+                "--scope",
+                "src/**/*.py",
+            )
+            self.assertEqual(result["decision"], "block")
+            self.assertIn("autoresearch-state.json", result["staged_artifacts"])
+
     def test_health_check_reports_warning_for_unexpected_worktree_changes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
@@ -3870,6 +3923,31 @@ class AutoresearchScriptsTest(unittest.TestCase):
             )
             self.assertEqual(result["decision"], "ok")
             self.assertFalse(any("unexpected worktree changes" in warning for warning in result["warnings"]))
+
+    def test_health_check_blocks_when_verify_command_is_missing_from_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            env = dict(os.environ)
+            env["PATH"] = "/nonexistent"
+
+            result = self.run_script(
+                "autoresearch_health_check.py",
+                "--repo",
+                str(repo),
+                "--results-path",
+                str(repo / "research-results.tsv"),
+                "--state-path",
+                str(repo / "autoresearch-state.json"),
+                "--verify-cmd",
+                "python -V",
+                "--min-free-mb",
+                "1",
+                env=env,
+            )
+            self.assertEqual(result["decision"], "block")
+            self.assertTrue(
+                any("verify command is not executable" in blocker for blocker in result["blockers"])
+            )
 
     def test_health_check_finds_repo_state_without_explicit_state_path_outside_repo_cwd(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
