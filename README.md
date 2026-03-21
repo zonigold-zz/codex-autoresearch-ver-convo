@@ -524,6 +524,7 @@ Human-facing usage now has a single entrypoint: **`$codex-autoresearch`**.
 
 - First interactive run: describe the goal naturally, answer the confirmation questions, then reply `go`.
 - After `go`, Codex calls `autoresearch_runtime_ctl.py launch`, which atomically writes `autoresearch-launch.json` and starts the detached runtime controller.
+- Before the detached runtime starts a session or relaunches one, it runs a script-level preflight: `autoresearch_health_check.py` for integrity checks and `autoresearch_commit_gate.py` for scope-aware git safety.
 - Later `status`, `stop`, or `resume` requests should still go through `$codex-autoresearch`; the skill uses `autoresearch_runtime_ctl.py` internally.
 - `Mode: exec` remains the advanced / CI path for fully specified non-interactive runs.
 
@@ -539,7 +540,8 @@ Advanced backend usage is available when you are scripting or debugging the runt
 
 | Concern | How it is handled |
 |---------|-------------------|
-| Dirty worktree | Loop refuses to start; suggests `plan` mode or clean branch |
+| Dirty worktree | Runtime preflight blocks launch or relaunch until out-of-scope changes are cleaned up or isolated |
+| Health / state drift | Runtime preflight runs resume-helper-based integrity checks before every detached session and relaunch |
 | Failed change | Uses the rollback strategy approved before launch: approved hard reset in an isolated experiment branch/worktree, otherwise `git revert --no-edit HEAD`; results log remains the audit trail |
 | Guard failure | Up to 2 rework attempts before discarding |
 | Syntax error | Auto-fix immediately, does not count as iteration |
@@ -638,7 +640,7 @@ codex-autoresearch/
 
 **How many iterations?** Depends on the task. 5 for targeted fixes, 10-20 for exploration, unlimited for overnight runs.
 
-**Does it learn across runs?** Yes. Lessons are extracted after each run and consulted at the start of the next one. The lessons file persists across sessions.
+**Does it learn across runs?** Yes. Lessons are extracted after each kept iteration, after each pivot, and at runtime completion when no recent lesson exists. The lessons file persists across sessions and is consulted at the start of the next run.
 
 **Can it resume after an interruption?** Yes. The runtime reuses `autoresearch-launch.json`, `research-results.tsv`, and `autoresearch-state.json` to resume from the last consistent state.
 

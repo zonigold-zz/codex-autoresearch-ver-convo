@@ -455,7 +455,7 @@ If unrelated uncommitted changes exist:
 
 | Concern | How it is handled |
 |---------|-------------------|
-| Dirty worktree | Loop refuses to start; suggests plan mode or clean branch |
+| Dirty worktree | Runtime preflight blocks launch or relaunch until out-of-scope changes are cleaned up or isolated |
 | Failed change | Uses the rollback strategy approved before launch: approved hard reset in an isolated experiment branch/worktree, otherwise `git revert --no-edit HEAD`; results log is the audit trail |
 | Guard failure | Up to 2 rework attempts before discarding |
 | Syntax error | Auto-fix immediately, does not count as iteration |
@@ -548,6 +548,7 @@ The public human workflow now stays on a single entrypoint: `$codex-autoresearch
 2. Answer the confirmation questions.
 3. Reply `go`.
 4. Codex writes `autoresearch-launch.json` and starts the detached runtime controller automatically.
+5. Before each detached session or relaunch, the runtime controller runs `autoresearch_health_check.py` and `autoresearch_commit_gate.py` so integrity and scope safety are enforced at the control-plane boundary.
 
 After that, the run continues through fresh Codex sessions in the background until a terminal condition, blocker, or explicit stop request.
 

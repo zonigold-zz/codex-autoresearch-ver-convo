@@ -101,7 +101,7 @@ If required fields are missing, use the wizard contract in `references/interacti
 4. Read all in-scope files before the first write.
 5. One focused change per iteration.
 6. Mechanical verification only.
-7. Commit before verification only when `git status --porcelain` shows no changes outside the experiment scope or autoresearch-owned artifacts.
+7. Commit before verification only when `git status --porcelain` shows no changes outside the experiment scope or autoresearch-owned artifacts. The detached runtime enforces the same scope-aware gate before each relaunch boundary, but inside a live Codex session you must still honor it before creating a trial commit.
 8. Never stage or revert unrelated user changes.
 9. Keep run artifacts uncommitted and never stage them.
 10. Use the rollback strategy approved during setup. In a dedicated experiment branch/worktree with pre-launch approval, `git reset --hard HEAD~1` is allowed; otherwise use `git revert --no-edit HEAD`.
