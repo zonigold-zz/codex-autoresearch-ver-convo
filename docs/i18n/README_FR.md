@@ -438,15 +438,14 @@ Voir `references/parallel-experiments-protocol.md`.
 
 ## Reprise de session
 
-Si Codex detecte une execution precedente interrompue en mode interactif, il peut reprendre depuis le dernier etat coherent au lieu de recommencer. La source de recuperation principale est `autoresearch-state.json`, un instantane d'etat compact mis a jour atomiquement a chaque iteration. En mode `exec`, l'etat n'existe que dans un fichier temporaire sous `/tmp/codex-autoresearch-exec/...` puis est nettoye avant la sortie.
+Si Codex detecte une execution geree precedemment interrompue en mode interactif, il peut reprendre depuis le dernier etat coherent au lieu de recommencer. La source de recuperation principale est `autoresearch-state.json`, un instantane d'etat compact mis a jour atomiquement a chaque iteration. En mode `exec`, l'etat n'existe que dans un fichier temporaire sous `/tmp/codex-autoresearch-exec/...` puis est nettoye avant la sortie. La reprise directe sous la runtime detachee exige un `autoresearch-launch.json` deja present ; si cet etat de lancement confirme manque, il faut repasser par le flux normal de lancement.
 
 Priorite de recuperation en mode interactif :
 
-1. **JSON + TSV coherents :** reprise immediate, assistant saute
+1. **JSON + TSV coherents, launch manifest present :** reprise immediate, assistant saute
 2. **JSON valide, TSV incoherent :** mini-assistant (1 tour de confirmation)
-3. **JSON absent, TSV present :** recuperation TSV historique
-4. **JSON corrompu :** renomme en `.bak`, repli sur TSV
-5. **Aucun des deux :** nouveau depart (anciens journaux renommes)
+3. **JSON absent ou corrompu, TSV present :** le helper reconstruit l'etat retenu pour confirmation puis continue avec un nouveau launch manifest
+4. **Aucun des deux :** nouveau depart (anciens journaux renommes)
 
 Voir `references/session-resume-protocol.md`.
 
@@ -632,7 +631,7 @@ codex-autoresearch/
 
 **Apprend-il d'une execution a l'autre ?** Oui. Les lecons sont extraites apres chaque `keep`, apres chaque `pivot` et a la fin de la runtime lorsqu'aucune lecon recente n'existe. Le fichier de lecons persiste entre les sessions ; `exec` ne fait que lire les lecons existantes.
 
-**Peut-il reprendre apres une interruption ?** Oui. Lors de l'invocation suivante, il detecte l'execution precedente et reprend a partir du dernier etat coherent.
+**Peut-il reprendre apres une interruption ?** Oui, pour les executions gerees qui ont deja `autoresearch-launch.json`, `research-results.tsv` et `autoresearch-state.json`. Si l'etat de lancement confirme manque, relancez un nouveau run via le flux normal de lancement.
 
 **Peut-il effectuer des recherches web ?** Oui, lorsqu'il est bloque apres plusieurs pivots strategiques. Les resultats de recherche web sont traites comme des hypotheses et verifies mecaniquement.
 

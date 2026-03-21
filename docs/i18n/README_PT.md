@@ -437,15 +437,14 @@ Consulte `references/parallel-experiments-protocol.md`.
 
 ## Retomada de sessao
 
-Se o Codex detectar uma execucao anterior interrompida em modo interativo, ele pode retomar do ultimo estado consistente em vez de comecar do zero. A fonte de recuperacao principal e `autoresearch-state.json`, um snapshot de estado compacto atualizado atomicamente a cada iteracao. No modo `exec`, o estado existe apenas em um arquivo temporario sob `/tmp/codex-autoresearch-exec/...` e e removido antes de sair.
+Se o Codex detectar uma execucao gerenciada anteriormente interrompida em modo interativo, ele pode retomar do ultimo estado consistente em vez de comecar do zero. A fonte de recuperacao principal e `autoresearch-state.json`, um snapshot de estado compacto atualizado atomicamente a cada iteracao. No modo `exec`, o estado existe apenas em um arquivo temporario sob `/tmp/codex-autoresearch-exec/...` e e removido antes de sair. A retomada direta na runtime desacoplada exige um `autoresearch-launch.json` ja existente; se esse estado de lancamento confirmado estiver ausente, use o fluxo normal de lancamento para iniciar um novo run.
 
 Prioridade de recuperacao para modos interativos:
 
-1. **JSON + TSV consistentes:** retomada imediata, assistente ignorado
+1. **JSON + TSV consistentes, com launch manifest presente:** retomada imediata, assistente ignorado
 2. **JSON valido, TSV inconsistente:** mini-assistente (1 rodada de confirmacao)
-3. **JSON ausente, TSV presente:** recuperacao TSV legada
-4. **JSON corrompido:** renomeado para `.bak`, fallback para TSV
-5. **Nenhum presente:** inicio limpo (logs antigos renomeados)
+3. **JSON ausente ou corrompido, TSV presente:** o helper reconstrui o estado retido para confirmacao e depois continua com um novo launch manifest
+4. **Nenhum presente:** inicio limpo (logs antigos renomeados)
 
 Veja `references/session-resume-protocol.md`.
 
@@ -631,7 +630,7 @@ codex-autoresearch/
 
 **Ele aprende entre execucoes?** Sim. As licoes sao extraidas apos cada `keep`, apos cada `pivot` e no fim da runtime quando nao existe licao recente. O arquivo de licoes persiste entre sessoes; `exec` apenas le as licoes existentes.
 
-**Pode retomar apos uma interrupcao?** Sim. Na proxima invocacao, detecta a execucao anterior e retoma do ultimo estado consistente.
+**Pode retomar apos uma interrupcao?** Sim, para execucoes gerenciadas que ja tenham `autoresearch-launch.json`, `research-results.tsv` e `autoresearch-state.json`. Se o estado de lancamento confirmado estiver ausente, inicie um novo run pelo fluxo normal de lancamento.
 
 **Pode pesquisar na web?** Sim, quando travado apos multiplas mudancas de estrategia. Os resultados da busca web sao tratados como hipoteses e verificados mecanicamente.
 

@@ -437,15 +437,14 @@ Siehe `references/parallel-experiments-protocol.md`.
 
 ## Sitzungswiederaufnahme
 
-Wenn Codex in einem interaktiven Modus einen zuvor unterbrochenen Lauf erkennt, kann es vom letzten konsistenten Zustand fortfahren, anstatt von vorne zu beginnen. Die primaere Wiederherstellungsquelle ist `autoresearch-state.json`, ein kompakter Zustandssnapshot, der bei jeder Iteration atomar aktualisiert wird. Im Modus `exec` liegt der Zustand nur in einer temporaeren Datei unter `/tmp/codex-autoresearch-exec/...` und wird vor dem Beenden entfernt.
+Wenn Codex in einem interaktiven Modus einen zuvor unterbrochenen verwalteten Lauf erkennt, kann es vom letzten konsistenten Zustand fortfahren, anstatt von vorne zu beginnen. Die primaere Wiederherstellungsquelle ist `autoresearch-state.json`, ein kompakter Zustandssnapshot, der bei jeder Iteration atomar aktualisiert wird. Im Modus `exec` liegt der Zustand nur in einer temporaeren Datei unter `/tmp/codex-autoresearch-exec/...` und wird vor dem Beenden entfernt. Eine direkte Wiederaufnahme unter der entkoppelten Runtime setzt ein vorhandenes `autoresearch-launch.json` voraus; ohne dieses bestaetigte Start-Manifest folgt der Lauf dem normalen Startfluss.
 
 Wiederherstellungsprioritaet fuer interaktive Modi:
 
-1. **JSON + TSV konsistent:** sofortige Wiederaufnahme, Assistent uebersprungen
+1. **JSON + TSV konsistent, Launch-Manifest vorhanden:** sofortige Wiederaufnahme, Assistent uebersprungen
 2. **JSON gueltig, TSV inkonsistent:** Mini-Assistent (1 Runde Bestaetigung)
-3. **JSON fehlt, TSV vorhanden:** Legacy-TSV-Wiederherstellung
-4. **JSON beschaedigt:** Umbenennung in `.bak`, Fallback auf TSV
-5. **Keines vorhanden:** Neustart (alte Protokolle umbenannt)
+3. **JSON fehlt oder ist beschaedigt, TSV vorhanden:** Der Helper rekonstruiert den beibehaltenen Zustand zur Bestaetigung und faehrt dann mit einem neuen Launch-Manifest fort
+4. **Keines vorhanden:** Neustart (alte Protokolle umbenannt)
 
 Siehe `references/session-resume-protocol.md`.
 
@@ -631,7 +630,7 @@ codex-autoresearch/
 
 **Lernt es ueber Laeufe hinweg?** Ja. Erkenntnisse werden nach jedem `keep`, nach jedem `pivot` und bei Runtime-Abschluss ohne aktuelle Erkenntnis extrahiert. Die Erkenntnisdatei bleibt ueber Sitzungen hinweg erhalten; `exec` liest nur vorhandene Erkenntnisse.
 
-**Kann es nach einer Unterbrechung fortfahren?** Ja. Beim naechsten Aufruf erkennt es den vorherigen Lauf und setzt vom letzten konsistenten Zustand fort.
+**Kann es nach einer Unterbrechung fortfahren?** Ja, sofern es sich um einen verwalteten Lauf mit `autoresearch-launch.json`, `research-results.tsv` und `autoresearch-state.json` handelt. Fehlt der bestaetigte Startzustand, beginnen Sie ueber den normalen Startfluss neu.
 
 **Kann es im Web suchen?** Ja, wenn es nach mehreren Strategiewechseln feststeckt. Websuche-Ergebnisse werden als Hypothesen behandelt und mechanisch verifiziert.
 

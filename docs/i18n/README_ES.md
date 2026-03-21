@@ -437,15 +437,14 @@ Consulta `references/parallel-experiments-protocol.md`.
 
 ## Reanudacion de sesion
 
-Si Codex detecta una ejecucion anterior interrumpida en modo interactivo, puede reanudar desde el ultimo estado consistente en lugar de empezar de cero. La fuente de recuperacion principal es `autoresearch-state.json`, una instantanea de estado compacta actualizada atomicamente en cada iteracion. En modo `exec`, el estado solo existe en un archivo temporal bajo `/tmp/codex-autoresearch-exec/...` y se limpia antes de salir.
+Si Codex detecta una ejecucion gestionada anteriormente interrumpida en modo interactivo, puede reanudar desde el ultimo estado consistente en lugar de empezar de cero. La fuente de recuperacion principal es `autoresearch-state.json`, una instantanea de estado compacta actualizada atomicamente en cada iteracion. En modo `exec`, el estado solo existe en un archivo temporal bajo `/tmp/codex-autoresearch-exec/...` y se limpia antes de salir. La reanudacion directa en la runtime desacoplada requiere un `autoresearch-launch.json` existente; si falta ese estado de lanzamiento confirmado, usa el flujo normal de inicio.
 
 Prioridad de recuperacion para modos interactivos:
 
-1. **JSON + TSV consistentes:** reanudacion inmediata, asistente omitido
+1. **JSON + TSV consistentes y launch manifest presente:** reanudacion inmediata, asistente omitido
 2. **JSON valido, TSV inconsistente:** mini-asistente (1 ronda de confirmacion)
-3. **JSON ausente, TSV presente:** recuperacion TSV heredada
-4. **JSON corrupto:** renombrado a `.bak`, respaldo a TSV
-5. **Ninguno presente:** inicio limpio (registros antiguos renombrados)
+3. **JSON ausente o corrupto, TSV presente:** el helper reconstruye el estado retenido para confirmarlo y luego continua con un nuevo launch manifest
+4. **Ninguno presente:** inicio limpio (registros antiguos renombrados)
 
 Ver `references/session-resume-protocol.md`.
 
@@ -631,7 +630,7 @@ codex-autoresearch/
 
 **Aprende entre ejecuciones?** Si. Las lecciones se extraen despues de cada `keep`, despues de cada `pivot` y al terminar la runtime cuando no existe una leccion reciente. El archivo de lecciones persiste entre sesiones; `exec` solo lee las lecciones existentes.
 
-**Puede reanudar despues de una interrupcion?** Si. En la siguiente invocacion, detecta la ejecucion anterior y reanuda desde el ultimo estado consistente.
+**Puede reanudar despues de una interrupcion?** Si, para ejecuciones gestionadas que ya tengan `autoresearch-launch.json`, `research-results.tsv` y `autoresearch-state.json`. Si falta el estado de lanzamiento confirmado, inicia una nueva ejecucion mediante el flujo normal de lanzamiento.
 
 **Puede buscar en la web?** Si, cuando esta atascado despues de multiples cambios de estrategia. Los resultados de la busqueda web se tratan como hipotesis y se verifican mecanicamente.
 

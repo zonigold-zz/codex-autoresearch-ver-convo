@@ -440,15 +440,14 @@ See `references/parallel-experiments-protocol.md`.
 
 ## Session Resume
 
-If Codex detects a prior interrupted run, it can resume from the last consistent state instead of starting over. The primary recovery source is `autoresearch-state.json`, a compact state snapshot atomically updated each iteration. The TSV results log serves as a cross-validation fallback.
+If Codex detects a prior interrupted managed run, it can resume from the last consistent state instead of starting over. The primary recovery source is `autoresearch-state.json`, a compact state snapshot atomically updated each iteration. The TSV results log serves as a cross-validation fallback. Direct detached-runtime resume requires an existing `autoresearch-launch.json`; if that confirmed launch state is missing, start a new run through the normal launch flow instead.
 
 Recovery priority:
 
-1. **JSON + TSV summary consistent:** resume immediately, skip wizard
+1. **JSON + TSV summary consistent, launch manifest present:** resume immediately, skip wizard
 2. **JSON valid, helper reports mismatch:** mini-wizard (1 round) to re-confirm
-3. **JSON missing, TSV exists:** helper reconstructs retained state from TSV
-4. **JSON corrupt:** rename to `.bak`, fall back to TSV
-5. **Neither exists:** fresh start (old logs renamed)
+3. **JSON missing or corrupt, TSV exists:** helper reconstructs retained state for confirmation, then continue with a fresh launch manifest
+4. **Neither exists:** fresh start (old logs renamed)
 
 See `references/session-resume-protocol.md`.
 
@@ -642,7 +641,7 @@ codex-autoresearch/
 
 **Does it learn across runs?** Yes. Lessons are extracted after each kept iteration, after each pivot, and at runtime completion when no recent lesson exists. The lessons file persists across sessions and is consulted at the start of the next run.
 
-**Can it resume after an interruption?** Yes. The runtime reuses `autoresearch-launch.json`, `research-results.tsv`, and `autoresearch-state.json` to resume from the last consistent state.
+**Can it resume after an interruption?** Yes, for managed runs that already have `autoresearch-launch.json`, `research-results.tsv`, and `autoresearch-state.json`. If the confirmed launch state is missing, start a new run through the normal launch flow.
 
 **Can it search the web?** Yes, when stuck after multiple strategy pivots. Web search results are treated as hypotheses and verified mechanically.
 

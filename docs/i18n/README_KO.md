@@ -437,15 +437,14 @@ security + fix               # 감사와 수정을 한 번에 수행
 
 ## 세션 재개
 
-Codex가 인터랙티브 모드에서 이전에 중단된 실행을 감지하면 처음부터 다시 시작하는 대신 마지막 일관된 상태에서 재개할 수 있습니다. 주요 복구 소스는 `autoresearch-state.json`으로, 각 반복마다 원자적으로 업데이트되는 컴팩트한 상태 스냅샷입니다. `exec` 모드에서는 상태가 `/tmp/codex-autoresearch-exec/...` 아래의 임시 파일에만 존재하며 종료 전에 정리됩니다.
+Codex가 인터랙티브 모드에서 이전에 중단된 관리형 run 을 감지하면 처음부터 다시 시작하는 대신 마지막 일관된 상태에서 재개할 수 있습니다. 주요 복구 소스는 `autoresearch-state.json`으로, 각 반복마다 원자적으로 업데이트되는 컴팩트한 상태 스냅샷입니다. `exec` 모드에서는 상태가 `/tmp/codex-autoresearch-exec/...` 아래의 임시 파일에만 존재하며 종료 전에 정리됩니다. 분리된 runtime 이 직접 재개하려면 기존 `autoresearch-launch.json` 이 있어야 하며, 이 확인된 launch state 가 없으면 일반 launch 흐름으로 새로 시작해야 합니다.
 
 복구 우선순위(인터랙티브 모드):
 
-1. **JSON + TSV 일치:** 즉시 재개, 마법사 건너뛰기
+1. **JSON + TSV 일치, 그리고 launch manifest 존재:** 즉시 재개, 마법사 건너뛰기
 2. **JSON 유효, TSV 불일치:** 미니 마법사 (1라운드 확인)
-3. **JSON 없음, TSV 존재:** 레거시 TSV 복구
-4. **JSON 손상:** `.bak`으로 이름 변경, TSV로 폴백
-5. **둘 다 없음:** 새로 시작 (이전 로그 이름 변경)
+3. **JSON 없음 또는 손상, TSV 존재:** helper 가 유지 상태를 재구성해 확인한 뒤 새 launch manifest 로 계속 진행
+4. **둘 다 없음:** 새로 시작 (이전 로그 이름 변경)
 
 `references/session-resume-protocol.md` 참조.
 
@@ -631,7 +630,7 @@ codex-autoresearch/
 
 **실행 간에 학습하나요?** 예. 교훈은 각 `keep`, 각 `pivot`, 그리고 최근 교훈이 없는 상태로 runtime 이 종료될 때 추출됩니다. 교훈 파일은 세션 간에 유지됩니다. `exec` 는 기존 교훈만 읽고 새 교훈은 쓰지 않습니다.
 
-**중단 후 재개할 수 있나요?** 예. 다음 호출 시 이전 실행을 감지하고 마지막 일관 상태에서 재개합니다.
+**중단 후 재개할 수 있나요?** 예. 다만 `autoresearch-launch.json`, `research-results.tsv`, `autoresearch-state.json` 이 이미 있는 관리형 run 이어야 합니다. 확인된 launch state 가 없으면 일반 launch 흐름으로 새 run 을 시작하세요.
 
 **Web 검색이 가능한가요?** 예. 여러 번의 전략 피봇 후 정체되었을 때 사용됩니다. Web 검색 결과는 가설로 취급되어 기계적으로 검증됩니다.
 

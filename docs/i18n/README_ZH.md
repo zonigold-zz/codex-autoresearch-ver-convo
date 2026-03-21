@@ -437,15 +437,14 @@ security + fix               # 审计并修复一步到位
 
 ## 会话恢复
 
-如果 Codex 在交互模式下检测到之前被中断的运行，它可以从最后一致的状态恢复，而不是从头开始。主要恢复来源是 `autoresearch-state.json`，一个每次迭代原子更新的紧凑状态快照。`exec` 模式下，状态只会写入 `/tmp/codex-autoresearch-exec/...` 下的临时文件，并会在退出前清理。
+如果 Codex 在交互模式下检测到之前被中断的受管运行，它可以从最后一致的状态恢复，而不是从头开始。主要恢复来源是 `autoresearch-state.json`，一个每次迭代原子更新的紧凑状态快照。`exec` 模式下，状态只会写入 `/tmp/codex-autoresearch-exec/...` 下的临时文件，并会在退出前清理。要让分离 runtime 直接恢复，必须已经存在 `autoresearch-launch.json`；如果缺少这个已确认的启动清单，就应按正常启动流程重新开始。
 
 恢复优先级（交互模式）：
 
-1. **JSON + TSV 一致：** 立即恢复，跳过向导
+1. **JSON + TSV 一致，且 launch manifest 存在：** 立即恢复，跳过向导
 2. **JSON 有效，TSV 不一致：** 迷你向导（1 轮确认）
-3. **JSON 缺失，TSV 存在：** 旧版 TSV 恢复
-4. **JSON 损坏：** 重命名为 `.bak`，回退到 TSV
-5. **都不存在：** 全新开始（旧日志重命名）
+3. **JSON 缺失或损坏，TSV 存在：** helper 先重建保留状态供确认，然后用新的 launch manifest 继续
+4. **都不存在：** 全新开始（旧日志重命名）
 
 参见 `references/session-resume-protocol.md`。
 
@@ -631,7 +630,7 @@ codex-autoresearch/
 
 **它会跨运行学习吗？** 是的。每次 `keep`、每次 `pivot`，以及 runtime 结束且最近 5 次迭代没有新经验时，都会提取经验。经验文件跨会话持久保存；`exec` 只读取已有经验，不写入新经验。
 
-**中断后能恢复吗？** 是的。下次调用时，它会检测先前的运行并从最后一致的状态恢复。
+**中断后能恢复吗？** 可以，但前提是这是一个已经有 `autoresearch-launch.json`、`research-results.tsv` 和 `autoresearch-state.json` 的受管运行。缺少已确认 launch state 时，应按正常启动流程重新开始。
 
 **它能搜索网络吗？** 是的，在多次策略转向后仍然卡住时。搜索结果作为假设处理，机械验证后才应用。
 
