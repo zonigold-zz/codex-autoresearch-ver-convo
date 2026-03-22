@@ -697,6 +697,7 @@ class AutoresearchSupervisorLaunchTest(AutoresearchScriptsTestBase):
             self.assertIn("$codex-autoresearch", prompt)
             self.assertIn("The human already completed the confirmation phase", prompt)
             self.assertIn(f"Use {launch_path}", prompt)
+            self.assertIn("Session mode: background", prompt)
             self.assertIn("Do not run the interactive wizard again.", prompt)
             self.assertIn("Stop condition: stop when metric reaches 0", prompt)
 
@@ -837,6 +838,8 @@ class AutoresearchSupervisorLaunchTest(AutoresearchScriptsTestBase):
             )
 
             manifest = json.loads(Path(str(launch["launch_path"])).read_text(encoding="utf-8"))
+            self.assertEqual(manifest["session_mode"], "background")
+            self.assertEqual(manifest["config"]["session_mode"], "background")
             self.assertEqual(manifest["config"]["scope"], "src/**/*.py")
             self.assertEqual(manifest["config"]["execution_policy"], "danger_full_access")
             self.assertEqual(

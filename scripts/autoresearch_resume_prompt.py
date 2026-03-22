@@ -47,6 +47,7 @@ def build_runtime_prompt(
         f"Runtime launch decision: {decision} ({strategy}).",
         "",
         f"Original ask: {launch_manifest['original_goal']}",
+        f"Session mode: {config.get('session_mode', 'background')}",
         f"Mode: {launch_manifest.get('mode', 'loop')}",
         f"Goal: {config.get('goal', '')}",
         f"Scope: {repo_targets[0].scope}",
@@ -76,6 +77,7 @@ def build_runtime_prompt(
             "- Do not ask the user for launch confirmation again.",
             "- If results/state artifacts exist, resume from them.",
             "- If they do not exist yet, initialize a fresh run from the launch manifest.",
+            "- When initializing fresh artifacts for this managed run, call autoresearch_init_run.py with --session-mode background.",
             "- Continue autonomously until a terminal condition or blocker is reached.",
             "- Keep all run-control decisions aligned with the launch manifest and current state.",
         ]

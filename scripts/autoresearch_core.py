@@ -20,6 +20,7 @@ HEADER = [
     "status",
     "description",
 ]
+SESSION_MODE_CHOICES = ("foreground", "background")
 EXEC_SCRATCH_ROOT = Path("/tmp/codex-autoresearch-exec")
 LAUNCH_MANIFEST_NAME = "autoresearch-launch.json"
 RUNTIME_STATE_NAME = "autoresearch-runtime.json"

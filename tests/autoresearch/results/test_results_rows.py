@@ -79,6 +79,9 @@ class AutoresearchResultsRowsTest(AutoresearchScriptsTestBase):
             )
 
             state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(state["session_mode"], "foreground")
+            self.assertEqual(state["config"]["session_mode"], "foreground")
+            self.assertNotIn("execution_policy", state["config"])
             self.assertEqual(state["state"]["iteration"], 2)
             self.assertEqual(state["state"]["current_metric"], 8)
             self.assertEqual(state["state"]["best_metric"], 8)
@@ -97,6 +100,9 @@ class AutoresearchResultsRowsTest(AutoresearchScriptsTestBase):
             )
             self.assertEqual(resume["decision"], "full_resume")
             self.assertEqual(resume["tsv_summary"]["iteration"], 2)
+            self.assertFalse((tmpdir / "autoresearch-launch.json").exists())
+            self.assertFalse((tmpdir / "autoresearch-runtime.json").exists())
+            self.assertFalse((tmpdir / "autoresearch-runtime.log").exists())
 
     def test_multi_repo_provenance_is_persisted_in_state_for_init_and_iterations(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -139,6 +145,8 @@ class AutoresearchResultsRowsTest(AutoresearchScriptsTestBase):
             )
 
             state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(state["session_mode"], "foreground")
+            self.assertEqual(state["config"]["session_mode"], "foreground")
             self.assertEqual(
                 state["state"]["last_repo_commits"],
                 {

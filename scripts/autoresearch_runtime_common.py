@@ -108,6 +108,7 @@ def manifest_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
         companion_repo_scopes=getattr(args, "companion_repo_scope", []),
     )
     return {
+        "session_mode": "background",
         "goal": args.goal,
         "scope": repo_targets[0].scope,
         "repos": serialize_repo_targets(repo_targets),

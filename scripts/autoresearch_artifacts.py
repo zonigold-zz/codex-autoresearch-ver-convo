@@ -378,6 +378,7 @@ def build_state_payload(
     summary: dict[str, Any],
     supervisor: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    session_mode = config.get("session_mode")
     payload = {
         "version": 1,
         "run_tag": run_tag or "",
@@ -404,6 +405,8 @@ def build_state_payload(
         },
         "updated_at": utc_now(),
     }
+    if isinstance(session_mode, str) and session_mode:
+        payload["session_mode"] = session_mode
     last_repo_commits = summary.get("last_repo_commits")
     if isinstance(last_repo_commits, dict) and last_repo_commits:
         payload["state"]["last_repo_commits"] = deepcopy(last_repo_commits)
@@ -426,8 +429,10 @@ def build_launch_manifest(
     prompt_text: str | None = None,
     notes: list[str] | None = None,
 ) -> dict[str, Any]:
+    session_mode = config.get("session_mode")
     return {
         "version": 1,
+        "session_mode": session_mode if isinstance(session_mode, str) and session_mode else "",
         "mode": mode,
         "original_goal": original_goal,
         "prompt_text": prompt_text or "",
