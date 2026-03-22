@@ -3,13 +3,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from autoresearch_helpers import (
     AutoresearchError,
+    archive_path_to_prev,
     build_state_payload,
     cleanup_exec_state,
+    default_state_path,
     decimal_to_json_number,
+    find_repo_root,
     format_decimal,
     make_row,
     parse_decimal,
@@ -17,6 +21,11 @@ from autoresearch_helpers import (
     write_json_atomic,
     write_results_log,
 )
+from autoresearch_preflight import evaluate_repo_preflight
+
+
+class HardBlockerError(AutoresearchError):
+    pass
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -54,14 +63,36 @@ def main() -> int:
     args = parser.parse_args()
 
     results_path = Path(args.results_path)
-    state_path = resolve_state_path(args.state_path, mode=args.mode)
+    repo_hint = results_path.parent if results_path.is_absolute() else None
+    repo_context = repo_hint or Path.cwd()
+    repo = find_repo_root(repo_context)
+    state_path = resolve_state_path(args.state_path, mode=args.mode, cwd=repo_context)
+
+    if args.mode == "exec":
+        preflight = evaluate_repo_preflight(
+            repo=repo,
+            results_path=results_path,
+            state_path_arg=args.state_path,
+            verify_command=args.verify,
+            scope_text=args.scope,
+            commit_phase="prelaunch",
+            include_health=False,
+            rollback_policy=None,
+            destructive_approved=False,
+        )
+        if preflight["decision"] == "block":
+            raise HardBlockerError(
+                "Exec prelaunch failed: " + "; ".join(preflight["blockers"])
+            )
 
     # Exec mode is documented to start fresh. If the default scratch state was
     # left behind by a previous crashed run, clear it before checking for
     # existing artifacts so the next unattended run can start cleanly.
     if args.mode == "exec" and args.state_path is None and not args.force:
         if state_path.exists():
-            cleanup_exec_state()
+            cleanup_exec_state(repo)
+        archive_path_to_prev(results_path)
+        archive_path_to_prev(default_state_path(repo))
 
     if not args.force:
         for path in (results_path, state_path):
@@ -149,5 +180,8 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
+    except HardBlockerError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(2)
     except AutoresearchError as exc:
         raise SystemExit(f"error: {exc}")

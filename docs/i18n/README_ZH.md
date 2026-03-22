@@ -437,15 +437,14 @@ security + fix               # 审计并修复一步到位
 
 ## 会话恢复
 
-如果 Codex 在交互模式下检测到之前被中断的运行，它可以从最后一致的状态恢复，而不是从头开始。主要恢复来源是 `autoresearch-state.json`，一个每次迭代原子更新的紧凑状态快照。`exec` 模式下，状态只会写入 `/tmp/codex-autoresearch-exec/...` 下的临时文件，并会在退出前清理。
+如果 Codex 在交互模式下检测到之前被中断的受管运行，它可以从最后一致的状态恢复，而不是从头开始。主要恢复来源是 `autoresearch-state.json`，一个每次迭代原子更新的紧凑状态快照。`exec` 模式下，状态只会写入 `/tmp/codex-autoresearch-exec/...` 下的临时文件，并需要由 `exec` 工作流在退出前显式清理。要让分离的运行控制器直接恢复，必须已经存在 `autoresearch-launch.json`；如果缺少这个已确认的启动清单，就应按正常启动流程重新开始。
 
 恢复优先级（交互模式）：
 
-1. **JSON + TSV 一致：** 立即恢复，跳过向导
+1. **JSON + TSV 一致，且启动清单存在：** 立即恢复，跳过向导
 2. **JSON 有效，TSV 不一致：** 迷你向导（1 轮确认）
-3. **JSON 缺失，TSV 存在：** 旧版 TSV 恢复
-4. **JSON 损坏：** 重命名为 `.bak`，回退到 TSV
-5. **都不存在：** 全新开始（旧日志重命名）
+3. **JSON 缺失或损坏，TSV 存在：** 辅助脚本先重建保留状态供确认，然后用新的启动清单继续
+4. **都不存在：** 全新开始（归档之前的持久 run-control 工件）
 
 参见 `references/session-resume-protocol.md`。
 
@@ -494,9 +493,39 @@ iteration  commit   metric  delta   status    description
 3          c3d4e5f  38      -3      keep      type-narrow API response handlers
 ```
 
-`exec` 模式下，状态快照仅保存在 `/tmp/codex-autoresearch-exec/...` 的临时位置，并会在退出前清理。请通过 `<skill-root>/scripts/...` 下随 skill 打包的 helper scripts 更新这些工件，而不是调用目标仓库自己的 `scripts/` 目录。
+`exec` 模式下，状态快照仅保存在 `/tmp/codex-autoresearch-exec/...` 的临时位置，并需要由 `exec` 工作流在退出前显式清理。请通过 `<skill-root>/scripts/...` 下随 skill 打包的 helper scripts 更新这些工件，而不是调用目标仓库自己的 `scripts/` 目录。
 
 两个文件都不提交到 git。会话恢复时，JSON 状态会与重建出的 TSV 主迭代摘要交叉验证，而不是直接对比行数。进度摘要每 5 次迭代打印一次。有界运行在最后打印基线到最优的总结。
+
+这些状态工件由随 skill 打包的 helper scripts 维护。请通过已安装 skill 的路径调用它们，而不是调用目标仓库自己的 `scripts/` 目录。这里 `<skill-root>` 指当前加载的 `SKILL.md` 所在目录；常见的 repo-local 安装位置是 `.agents/skills/codex-autoresearch`。
+
+- `python3 <skill-root>/scripts/autoresearch_init_run.py`
+- `python3 <skill-root>/scripts/autoresearch_record_iteration.py`
+- `python3 <skill-root>/scripts/autoresearch_resume_check.py`
+- `python3 <skill-root>/scripts/autoresearch_select_parallel_batch.py`
+- `python3 <skill-root>/scripts/autoresearch_exec_state.py`
+- `python3 <skill-root>/scripts/autoresearch_launch_gate.py`
+- `python3 <skill-root>/scripts/autoresearch_resume_prompt.py`
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py`
+- `python3 <skill-root>/scripts/autoresearch_commit_gate.py`
+- `python3 <skill-root>/scripts/autoresearch_health_check.py`
+- `python3 <skill-root>/scripts/autoresearch_decision.py`
+- `python3 <skill-root>/scripts/autoresearch_lessons.py`
+- `python3 <skill-root>/scripts/autoresearch_supervisor_status.py`
+
+对人类用户来说，现在只保留一个主要入口：**`$codex-autoresearch`**。
+
+- 首次交互运行：自然描述目标，回答确认问题，然后回复 `go`
+- 回复 `go` 后，Codex 会自动写入 `autoresearch-launch.json` 并启动分离的运行控制器
+- 之后每个托管循环都会启动一个非交互式 `codex exec` 会话，并通过 stdin 传入 runtime prompt
+- 之后如果想看状态、停止、恢复，仍然通过 `$codex-autoresearch` 这个 skill 来做
+- `Mode: exec` 仍然保留给 CI / 高级自动化
+
+如果你在做后端自动化或调试运行控制面，也可以直接调用：
+
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py status --repo <repo>`
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py stop --repo <repo>`
+
 
 ---
 
@@ -504,7 +533,7 @@ iteration  commit   metric  delta   status    description
 
 | 问题 | 处理方式 |
 |------|---------|
-| 脏工作树 | 拒绝启动；建议使用 plan 模式或干净分支 |
+| 脏工作树 | runtime 预检会阻止启动或重启，直到范围外变更被清理或隔离 |
 | 失败的更改 | 使用启动前确认过的回滚策略：隔离实验分支/工作树中可用已批准的 `git reset --hard HEAD~1`，否则使用 `git revert --no-edit HEAD`；结果日志仍是审计记录 |
 | 守护失败 | 最多 2 次修复尝试后丢弃 |
 | 语法错误 | 立即自动修复，不计入迭代 |
@@ -547,6 +576,22 @@ codex-autoresearch/
       README_RU.md                  # 俄语
   scripts/
     validate_skill_structure.sh     # 结构验证脚本
+    autoresearch_helpers.py         # 共享 TSV / JSON / runtime 工具脚本
+    autoresearch_launch_gate.py     # 在启动前判断 fresh / resumable / needs_human
+    autoresearch_resume_prompt.py   # 从启动清单生成运行控制器使用的提示词
+    autoresearch_runtime_ctl.py     # 控制 launch / create-launch / start / status / stop
+    autoresearch_commit_gate.py     # git / artifact / rollback gate
+    autoresearch_decision.py        # 结构化 keep / discard / crash 决策
+    autoresearch_health_check.py    # 可执行 health check
+    autoresearch_lessons.py         # lessons 追加 / 列表
+    autoresearch_init_run.py        # 初始化基线日志与状态
+    autoresearch_record_iteration.py # 追加一次主迭代并更新状态
+    autoresearch_resume_check.py    # 判断 full_resume / mini_wizard / fallback
+    autoresearch_select_parallel_batch.py # 记录 worker 行并选出胜者
+    autoresearch_exec_state.py      # 解析 / 清理 exec scratch state
+    autoresearch_supervisor_status.py # 判断 relaunch / stop / needs_human
+    check_skill_invariants.py       # 校验真实 skill 运行产物
+    run_skill_e2e.sh                # 一次性 Codex CLI 冒烟 harness
   references/
     core-principles.md              # 通用原则
     autonomous-loop-protocol.md     # 循环协议规范
@@ -584,9 +629,9 @@ codex-autoresearch/
 
 **迭代多少次？** 取决于任务。定向修复 5 次，探索性 10-20 次，过夜运行不设限。
 
-**它会跨运行学习吗？** 是的。除 `exec` 外，每次迭代运行后都会提取经验，并在下次运行开始时参考。经验文件跨会话持久保存；`exec` 只读取已有经验，不写入新经验。
+**它会跨运行学习吗？** 是的。每次 `keep`、每次 `pivot`，以及受管运行结束且最近 5 次迭代没有新经验时，都会提取经验。经验文件跨会话持久保存；`exec` 只读取已有经验，不写入新经验。
 
-**中断后能恢复吗？** 是的。下次调用时，它会检测先前的运行并从最后一致的状态恢复。
+**中断后能恢复吗？** 可以，但前提是这是一个已经有 `autoresearch-launch.json`、`research-results.tsv` 和 `autoresearch-state.json` 的受管运行。缺少已确认 launch state 时，应按正常启动流程重新开始。
 
 **它能搜索网络吗？** 是的，在多次策略转向后仍然卡住时。搜索结果作为假设处理，机械验证后才应用。
 

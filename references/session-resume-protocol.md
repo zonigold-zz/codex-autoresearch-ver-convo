@@ -38,11 +38,22 @@ The primary recovery source is `autoresearch-state.json`, an atomic-write snapsh
     "pivot_count": 0,
     "last_status": "discard"
   },
+  "supervisor": {
+    "recommended_action": "relaunch | stop | needs_human",
+    "should_continue": true,
+    "terminal_reason": "none | blocked | iteration_cap_reached | ...",
+    "last_exit_kind": "turn_complete | session_split | terminal | ...",
+    "last_turn_finished_at": "2026-03-19T08:20:10Z",
+    "restart_count": 3,
+    "stagnation_count": 0
+  },
   "updated_at": "2026-03-19T08:15:32Z"
 }
 ```
 
-Write protocol: write to `autoresearch-state.json.tmp`, then rename to `autoresearch-state.json` (atomic). Never commit this file to git.
+Write protocol: write to a uniquely named temporary file in the same directory, fsync, then rename to `autoresearch-state.json` (atomic). Never commit this file to git.
+
+The `supervisor` object is optional. It is written by the runtime control plane (`autoresearch_runtime_ctl.py` and `autoresearch_supervisor_status.py`), is not required for normal session resume, and should be preserved if present.
 
 ## Detection Signals
 
@@ -75,6 +86,15 @@ It reconstructs retained state from the TSV, tolerates parallel worker rows, and
 - `tsv_fallback`
 - `fresh_start`
 
+The helper's decision is the single control-plane source for:
+
+- `autoresearch_launch_gate.py`
+- `autoresearch_health_check.py`
+- `autoresearch_resume_prompt.py`
+- any runtime-managed resume prompt generation inside `autoresearch_runtime_ctl.py`
+
+Do not reimplement a second TSV/JSON reconciliation path in those scripts.
+
 Use `--write-repaired-state` when TSV recovery is valid and you want to rewrite `autoresearch-state.json` before resuming.
 
 ## Recovery Priority Matrix
@@ -99,8 +119,9 @@ When the helper reports `full_resume`:
    ```
 3. Skip the wizard entirely.
 4. Read the lessons file if present.
-5. Run the verify command once as a sanity check.
+5. Let the runtime preflight confirm that the configured verify command still resolves before continuing.
 6. If the current metric drifted, log a `drift` row and continue from the recalibrated state.
+7. Managed-runtime resume requires an existing `autoresearch-launch.json`. Runs that predate that manifest are no longer resumable under the detached runtime; start fresh through the single-entry launch flow instead of synthesizing compatibility artifacts.
 
 ### Priority 2: Mini-Wizard
 
@@ -113,7 +134,7 @@ When JSON exists but the helper reports `mini_wizard`:
    - resume from JSON state, or
    - start fresh and archive old artifacts.
 3. If resuming, use JSON `config` as the authoritative config and re-confirm it in a single block.
-4. If starting fresh, rename prior artifacts with `.prev` suffixes and proceed with the full wizard.
+4. If starting fresh, archive prior persistent run-control artifacts with `.prev` suffixes and proceed with the full wizard. In the managed-runtime path, this should happen through `autoresearch_runtime_ctl.py launch --fresh-start ...`.
 
 ### Priority 3: TSV Fallback
 
@@ -125,14 +146,15 @@ When JSON is missing or unusable but the helper reports `tsv_fallback`:
    python3 <skill-root>/scripts/autoresearch_resume_check.py --write-repaired-state
    ```
 3. Present one condensed confirmation block sourced from the reconstructed state.
-4. After confirmation, continue from the next main iteration.
+4. After confirmation, create a fresh launch manifest and continue from the next main iteration.
+5. Do not start the detached runtime directly from bare TSV fallback without a confirmed launch manifest.
 
 ### Priority 4: Fresh Start
 
 When the helper reports `fresh_start`:
 
 1. Proceed with the normal wizard flow.
-2. Rename prior `research-results.tsv` / `autoresearch-state.json` files to `.prev` variants if they exist.
+2. Rename prior persistent run-control artifacts to `.prev` variants if they exist. In the managed-runtime path, this archival is performed by `autoresearch_runtime_ctl.py launch --fresh-start ...`. This includes `research-results.tsv`, `autoresearch-state.json`, `autoresearch-launch.json`, `autoresearch-runtime.json`, and `autoresearch-runtime.log`.
 3. Keep `autoresearch-lessons.md` unless it is clearly corrupt.
 
 ## Edge Cases
@@ -147,7 +169,7 @@ If `research-results.tsv` is missing a baseline row, has a broken header, or con
 
 ### Different Goal
 
-If the recovered config clearly belongs to a different goal than the current request, start fresh and rename the old artifacts to `.prev`.
+If the recovered config clearly belongs to a different goal than the current request, start fresh and archive the old run-control artifacts to `.prev` through `autoresearch_runtime_ctl.py launch --fresh-start ...`.
 
 ## Session Splitting
 
@@ -174,22 +196,24 @@ Split the session when any of the following is true:
 
 ### Operator Guidance
 
-For long overnight runs, use a wrapper script that automatically restarts the CLI after a session split:
+The public human entry stays `$codex-autoresearch`.
+
+- New interactive run: answer the confirmation questions, then reply `go`.
+- After approval, Codex writes `autoresearch-launch.json` and starts the detached runtime controller automatically.
+- Later `status`, `stop`, and `resume` requests should still come through the same skill entrypoint.
+
+Advanced backend commands are available when scripting or debugging the controller:
 
 ```bash
-while true; do
-  codex --full-auto "$PROMPT"
-  # Session resume will detect the prior run and continue
-  sleep 5
-done
+python3 <skill-root>/scripts/autoresearch_runtime_ctl.py status --repo /path/to/repo
+python3 <skill-root>/scripts/autoresearch_runtime_ctl.py stop --repo /path/to/repo
 ```
 
-The session resume protocol (Priority 1: Full Resume) handles the restart transparently. The new session gets a fresh context window with all protocol files fully re-injected.
 
 ## Integration Points
 
-- **autonomous-loop-protocol.md:** Run the resume helper before the full wizard. Initialize new run artifacts only after baseline is measured.
+- **autonomous-loop-protocol.md:** Run the launch gate before the wizard. Initialize new run artifacts only after baseline is measured.
 - **results-logging.md:** Main integer rows define retained state; worker rows are audit detail only.
 - **interaction-wizard.md:** Mini-wizard uses helper mismatch reasons instead of raw row counts.
 - **health-check-protocol.md:** Deep integrity checks use the resume helper, not row-count heuristics.
-- **exec-workflow.md:** Exec mode skips session resume, archives prior persistent artifacts, and cleans up its scratch JSON state before exit.
+- **exec-workflow.md:** Exec mode skips session resume, archives the configured results log plus repo-root state artifacts, and requires the workflow to clean up its scratch JSON state before exit.

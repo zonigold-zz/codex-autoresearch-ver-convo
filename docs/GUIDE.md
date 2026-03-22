@@ -72,7 +72,7 @@ This boundary is absolute at the skill level. Everything before "go" can ask. Ev
 
 ## The Iteration Cycle
 
-Every iterating mode (loop, debug, fix, security) shares the same cycle:
+Every iterating mode (loop, debug, fix, security, ship) shares the same cycle:
 
 ```
   Pick hypothesis  -->  Edit files  -->  git commit  -->  Run verify + guard
@@ -109,6 +109,7 @@ Run artifacts should be updated by the helper scripts rather than hand-editing T
 - `python3 <skill-root>/scripts/autoresearch_record_iteration.py`
 - `python3 <skill-root>/scripts/autoresearch_resume_check.py`
 - `python3 <skill-root>/scripts/autoresearch_select_parallel_batch.py`
+- `python3 <skill-root>/scripts/autoresearch_supervisor_status.py`
 
 ### Verify and Guard: two gates, two questions
 
@@ -162,7 +163,7 @@ Codex infers these from your natural language input and repo context. You never 
 | `Guard` | none | Regression-prevention command that must always pass |
 | `Iterations` | unlimited | Stop after N iterations |
 | `Run tag` | auto-generated | Label for this run in the results log |
-| `Stop condition` | none | Custom early-stop rule (e.g., "stop when metric reaches 0") |
+| `Stop condition` | none | Custom early-stop rule (e.g., "stop when metric reaches 1" or "stop when metric reaches 90") |
 
 ### Bounded vs unbounded runs
 
@@ -345,6 +346,8 @@ Reference: `references/security-workflow.md`
 
 Gated release verification. Auto-detects what you are shipping (PR, deployment, release) and generates a checklist.
 
+Under the hood, ship mode still resolves a shipment scope, a readiness metric, and a mechanical verify command before the managed runtime launches.
+
 ```
 You:   $codex-autoresearch
        Ship it
@@ -413,7 +416,7 @@ Every iteration is recorded in `research-results.tsv`:
 iteration  commit   metric  delta   status    description
 0          a1b2c3d  47      0       baseline  initial any count
 1          b2c3d4e  41      -6      keep      replace any in auth module with strict types
-2          -        49      +8      discard   generic wrapper introduced new anys
+2          c3d4e5f  49      +8      discard   generic wrapper introduced new anys
 3          c3d4e5f  38      -3      keep      type-narrow API response handlers
 ```
 
@@ -454,7 +457,7 @@ If unrelated uncommitted changes exist:
 
 | Concern | How it is handled |
 |---------|-------------------|
-| Dirty worktree | Loop refuses to start; suggests plan mode or clean branch |
+| Dirty worktree | Runtime preflight blocks launch or relaunch until out-of-scope changes are cleaned up or isolated |
 | Failed change | Uses the rollback strategy approved before launch: approved hard reset in an isolated experiment branch/worktree, otherwise `git revert --no-edit HEAD`; results log is the audit trail |
 | Guard failure | Up to 2 rework attempts before discarding |
 | Syntax error | Auto-fix immediately, does not count as iteration |
@@ -519,9 +522,10 @@ If you interrupt a run and come back later, Codex can resume from where you left
 
 - It first validates `autoresearch-state.json`, the primary recovery source, against the retained-state summary reconstructed from `research-results.tsv`.
 - `autoresearch-lessons.md` is still read as context, but it is not the primary resume source.
-- If state is consistent: resumes immediately, no wizard needed.
+- Direct detached-runtime resume requires an existing `autoresearch-launch.json`.
+- If state is consistent and the launch manifest is present: resumes immediately, no wizard needed.
 - If state is partially consistent: runs a mini-wizard (1 round) to re-confirm.
-- If state is inconsistent or the goal has changed: starts fresh, renames old logs.
+- If state is inconsistent, the launch manifest is missing, or the goal has changed: starts fresh and archives the prior persistent run-control artifacts.
 
 ---
 
@@ -539,18 +543,33 @@ You do not need to do anything to enable this. It runs automatically as part of 
 
 If the context has been compacted twice or more, or the iteration counter reaches 40, the agent will proactively stop the loop and save a checkpoint. The results log will contain a `[SESSION-SPLIT]` entry with the reason. Simply re-invoke the skill to resume -- session resume picks up exactly where the split occurred.
 
-### Overnight Wrapper
+### Managed Runtime
 
-For truly long runs (overnight, multi-day), use a wrapper script that automatically restarts after a session split:
+The public human workflow now stays on a single entrypoint: `$codex-autoresearch`.
+
+1. Start the skill and describe the goal naturally.
+2. Answer the confirmation questions.
+3. Reply `go`.
+4. Codex writes `autoresearch-launch.json` and starts the detached runtime controller automatically.
+5. Each detached runtime cycle launches a non-interactive `codex exec` session with the runtime prompt supplied on stdin.
+6. Before each detached session or relaunch, the runtime controller runs `autoresearch_health_check.py` and `autoresearch_commit_gate.py` so integrity and scope safety are enforced at the control-plane boundary.
+7. If `codex exec` itself cannot be launched, the runtime moves to `needs_human` instead of silently looking idle.
+
+After that, the run continues through fresh Codex sessions in the background until a terminal condition, blocker, or explicit stop request.
+
+Use the same skill entry for follow-up control:
+
+- ask for status -> the skill reads the runtime controller state
+- ask to stop -> the skill stops the runtime controller
+- ask to resume -> the skill checks launch/runtime state and continues if safe
+
+Advanced backend commands are still available for scripting or debugging:
 
 ```bash
-while true; do
-  codex --full-auto "$PROMPT"
-  sleep 5
-done
+python3 <skill-root>/scripts/autoresearch_runtime_ctl.py status --repo /path/to/repo
+python3 <skill-root>/scripts/autoresearch_runtime_ctl.py stop --repo /path/to/repo
 ```
 
-Each restart gets a fresh context window with all protocol files fully re-injected, eliminating drift entirely. The session resume mechanism handles continuity transparently.
 
 ---
 
@@ -601,9 +620,13 @@ This should not happen. Rule 1 requires at least one confirming question. If it 
 
 This should not happen after you say "go." If it does, report it as a bug. The two-phase boundary is a hard rule.
 
+### How do I see runtime status or stop a run?
+
+Use the same `$codex-autoresearch` entry and ask for status or stop. For backend automation, call `autoresearch_runtime_ctl.py status` or `autoresearch_runtime_ctl.py stop` directly. The interactive `go` handoff now goes through `autoresearch_runtime_ctl.py launch`.
+
 ### The verify command fails on the first run
 
-Codex will attempt to fix it. If plan mode generated the config, it dry-runs the verify command before outputting the block. If you wrote the verify command yourself, test it manually first.
+Codex will attempt to fix it. If plan mode generated the config, it may dry-run the verify command when practical before outputting the block. If you wrote the verify command yourself, test it manually first.
 
 ### The loop refuses to commit
 

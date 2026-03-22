@@ -437,15 +437,14 @@ security + fix               # 監査と修復を一度に実施
 
 ## セッション再開
 
-Codex がインタラクティブモードで以前中断された実行を検出した場合、最初からやり直す代わりに最後の一貫した状態から再開できます。主要な回復ソースは `autoresearch-state.json` で、各イテレーションでアトミックに更新されるコンパクトな状態スナップショットです。`exec` モードでは状態は `/tmp/codex-autoresearch-exec/...` 配下の一時ファイルにのみ保持され、終了前に削除されます。
+Codex がインタラクティブモードで以前中断された管理対象 run を検出した場合、最初からやり直す代わりに最後の一貫した状態から再開できます。主要な回復ソースは `autoresearch-state.json` で、各イテレーションでアトミックに更新されるコンパクトな状態スナップショットです。`exec` モードでは状態は `/tmp/codex-autoresearch-exec/...` 配下の一時ファイルにのみ保持され、`exec` ワークフローが終了前に明示的に削除します。分離された実行コントローラが直接再開するには、既存の `autoresearch-launch.json` が必要です。この確認済みの起動マニフェストがない場合は、通常の起動フローから新しく開始します。
 
 回復優先度（インタラクティブモード）：
 
-1. **JSON + TSV 一致：** 即座に再開、ウィザードをスキップ
+1. **JSON + TSV 一致、かつ launch manifest が存在：** 即座に再開、ウィザードをスキップ
 2. **JSON 有効、TSV 不一致：** ミニウィザード（1 ラウンド確認）
-3. **JSON 欠落、TSV 存在：** レガシー TSV 回復
-4. **JSON 破損：** `.bak` にリネーム、TSV にフォールバック
-5. **両方なし：** 新規開始（古いログをリネーム）
+3. **JSON 欠落または破損、TSV 存在：** 補助スクリプトが保持状態を再構築して確認し、その後新しい起動マニフェストで続行
+4. **両方なし：** 新規開始（以前の永続的な run-control 工件をアーカイブ）
 
 `references/session-resume-protocol.md` を参照。
 
@@ -494,9 +493,39 @@ iteration  commit   metric  delta   status    description
 3          c3d4e5f  38      -3      keep      type-narrow API response handlers
 ```
 
-`exec` モードでは状態スナップショットは `/tmp/codex-autoresearch-exec/...` の一時領域にのみ存在し、終了前に削除されます。これらのアーティファクトは `<skill-root>/scripts/...` 配下の bundled helper scripts で更新し、対象リポジトリ自身の `scripts/` ディレクトリは使わないでください。
+`exec` モードでは状態スナップショットは `/tmp/codex-autoresearch-exec/...` の一時領域にのみ存在し、`exec` ワークフローが終了前に明示的に削除します。これらのアーティファクトは `<skill-root>/scripts/...` 配下の bundled helper scripts で更新し、対象リポジトリ自身の `scripts/` ディレクトリは使わないでください。
 
 両方のファイルは git にコミットしません。セッション再開時、JSON 状態は TSV の主イテレーション要約とクロスバリデーションされ、不整合を検出します。生の行数そのものは判定基準にしません。進捗サマリーは 5 イテレーションごとに出力されます。有界実行では最後にベースラインから最良値までのサマリーが出力されます。
+
+これらの状態成果物は、skill に同梱された helper scripts で管理します。対象リポジトリ自身の `scripts/` ではなく、インストール済み skill のパス経由で呼び出してください。ここで `<skill-root>` は読み込まれている `SKILL.md` のあるディレクトリを指し、一般的な repo-local インストールでは `.agents/skills/codex-autoresearch` です。
+
+- `python3 <skill-root>/scripts/autoresearch_init_run.py`
+- `python3 <skill-root>/scripts/autoresearch_record_iteration.py`
+- `python3 <skill-root>/scripts/autoresearch_resume_check.py`
+- `python3 <skill-root>/scripts/autoresearch_select_parallel_batch.py`
+- `python3 <skill-root>/scripts/autoresearch_exec_state.py`
+- `python3 <skill-root>/scripts/autoresearch_launch_gate.py`
+- `python3 <skill-root>/scripts/autoresearch_resume_prompt.py`
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py`
+- `python3 <skill-root>/scripts/autoresearch_commit_gate.py`
+- `python3 <skill-root>/scripts/autoresearch_health_check.py`
+- `python3 <skill-root>/scripts/autoresearch_decision.py`
+- `python3 <skill-root>/scripts/autoresearch_lessons.py`
+- `python3 <skill-root>/scripts/autoresearch_supervisor_status.py`
+
+人間向けの公開入口は、いまは **`$codex-autoresearch`** ひとつだけです。
+
+- 最初の対話実行では、目標を自然に説明し、確認の質問に答え、そのあと `go` と返します
+- `go` のあと、Codex は `autoresearch-launch.json` を書き込み、切り離された実行コントローラを自動で起動します
+- その後の各 managed runtime cycle は、runtime prompt を stdin で渡した非対話の `codex exec` セッションとして実行されます
+- その後の `status`、`stop`、`resume` も同じ `$codex-autoresearch` から行います
+- `Mode: exec` は、CI や完全に指定された自動化向けの上級パスとして残ります
+
+スクリプト実行や実行系のデバッグ向けに、直接制御コマンドも利用できます。
+
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py status --repo <repo>`
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py stop --repo <repo>`
+
 
 ---
 
@@ -504,7 +533,7 @@ iteration  commit   metric  delta   status    description
 
 | 懸念事項 | 対処方法 |
 |----------|----------|
-| ダーティなワークツリー | ループは開始を拒否。`plan` モードまたはクリーンなブランチを提案 |
+| ダーティなワークツリー | runtime の事前チェックが、対象範囲外の変更をクリーンアップまたは隔離するまで起動と再起動をブロック |
 | 失敗した変更 | 起動前に承認されたロールバック戦略を使用。隔離された実験ブランチ/ワークツリーで承認済みなら `git reset --hard HEAD~1`、それ以外は `git revert --no-edit HEAD`。結果ログが監査証跡 |
 | Guard の失敗 | 最大2回の再調整後にロールバック |
 | 構文エラー | 即座に修正。反復としてカウントしない |
@@ -546,7 +575,23 @@ codex-autoresearch/
       README_PT.md                  # ポルトガル語
       README_RU.md                  # ロシア語
   scripts/
-    validate_skill_structure.sh     # 構造検証スクリプト
+    validate_skill_structure.sh     # structure validator
+    autoresearch_helpers.py         # TSV / JSON / runtime を扱う共通ヘルパー
+    autoresearch_launch_gate.py     # 起動前に fresh / resumable / needs_human を判定
+    autoresearch_resume_prompt.py   # 保存済み設定から runtime 管理用のプロンプトを組み立てる
+    autoresearch_runtime_ctl.py     # runtime の launch / create-launch / start / status / stop を制御
+    autoresearch_commit_gate.py     # git / artifact / rollback gate
+    autoresearch_decision.py        # structured keep / discard / crash policy helpers
+    autoresearch_health_check.py    # executable health checks
+    autoresearch_lessons.py         # structured lessons append / list helpers
+    autoresearch_init_run.py        # initialize baseline log + state
+    autoresearch_record_iteration.py # append one main iteration + update state
+    autoresearch_resume_check.py    # decide full_resume / mini_wizard / fallback
+    autoresearch_select_parallel_batch.py # log worker rows + batch winner
+    autoresearch_exec_state.py      # resolve / cleanup exec scratch state
+    autoresearch_supervisor_status.py # decide relaunch / stop / needs_human
+    check_skill_invariants.py       # validate real skill-run artifacts
+    run_skill_e2e.sh                # disposable Codex CLI smoke harness
   references/
     core-principles.md              # 汎用原則
     autonomous-loop-protocol.md     # ループプロトコル仕様
@@ -584,9 +629,9 @@ codex-autoresearch/
 
 **何回反復する？** タスクによります。的を絞った修正は 5 回、探索的なものは 10-20 回、一晩の実行は無制限です。
 
-**実行間で学習する？** はい。`exec` を除く各反復実行後に教訓が抽出され、次回の実行開始時に参照されます。教訓ファイルはセッション間で保持されます。`exec` は既存の教訓を読むだけで、新しい教訓は書き込みません。
+**実行間で学習する？** はい。教訓は各 `keep`、各 `pivot`、そして最近の教訓がないまま管理対象の実行が終了した時に抽出されます。教訓ファイルはセッション間で保持されます。`exec` は既存の教訓を読むだけで、新しい教訓は書き込みません。
 
-**中断後に再開できる？** はい。次回の呼び出し時に、以前の実行を検出し、最後の整合状態から再開します。
+**中断後に再開できる？** はい。ただし `autoresearch-launch.json`、`research-results.tsv`、`autoresearch-state.json` がそろった管理対象 run に限ります。確認済みの launch state がない場合は、通常の launch フローから新しく開始してください。
 
 **Web 検索は可能？** はい。複数回の戦略ピボット後にスタックした場合に使用されます。Web 検索結果は仮説として扱われ、機械的に検証されます。
 

@@ -20,6 +20,7 @@ When this file mentions `<skill-root>`, it means the directory containing the lo
 6. Up to 5 clarification rounds are allowed before launching. But never zero rounds.
 7. Present a structured confirmation summary before launching (see Confirmation Format below).
 8. The user should never see raw field names (Goal, Scope, Metric, Direction, Verify, Guard). Translate everything into natural conversation.
+9. After the user approves the summary, persist the confirmed launch manifest and start the runtime controller. Do not tell the user to switch to a different wrapper command.
 
 ## Clarification Protocol
 
@@ -64,7 +65,7 @@ Before launching, present a structured confirmation summary. The user should be 
 - Any other safety checks beyond tsc?
 
 **Next step**
-- Reply "go" to start, or tell me what to change.
+- Reply "go" to start the managed run, or tell me what to change.
 ```
 
 #### Chinese Format
@@ -81,7 +82,7 @@ Before launching, present a structured confirmation summary. The user should be 
 - 除了 tsc 还有其他安全检查吗？
 
 **下一步**
-- 回复 "go" 开始，或告诉我要改什么。
+- 回复 "go" 启动托管运行，或告诉我要改什么。
 ```
 
 #### Format Rules
@@ -93,6 +94,23 @@ Before launching, present a structured confirmation summary. The user should be 
 5. End with a clear call to action.
 
 The user replies "go", "start", "launch", or corrects something. No field names, no YAML, no structured input required.
+
+## Launch Handoff
+
+When the user replies with launch approval (`go`, `start`, `launch`, or an equivalent clear confirmation):
+
+1. Persist the confirmed config to `autoresearch-launch.json`.
+2. Start the detached runtime controller.
+3. Report that the managed run has started and where the runtime/log artifacts live.
+4. Do not ask the user to rerun a shell wrapper command just to continue overnight.
+
+If the chosen path is **Fresh start** after recovery analysis, the handoff should be:
+
+```bash
+python3 <skill-root>/scripts/autoresearch_runtime_ctl.py launch --fresh-start ...
+```
+
+This archives prior persistent run-control artifacts to `.prev` before the new managed run begins, including `research-results.tsv`, `autoresearch-state.json`, `autoresearch-launch.json`, `autoresearch-runtime.json`, and `autoresearch-runtime.log`.
 
 ## Question Reference
 
@@ -202,7 +220,13 @@ The wizard internally maps the conversation to these fields (the user never sees
 ### ship
 
 - Shipment type -- auto-detected or asked
+- Target -- inferred or asked
+- Scope -- inferred from the target artifact, release files, deployment config, and any checklist-related files that may need edits
+- Metric -- checklist readiness score (or another mechanical pass-count score)
+- Direction -- `higher`
+- Verify -- Codex proposes a command or script that evaluates the checklist and emits the readiness score
 - Run mode -- ask: "Dry run first, or ship directly?"
+- Monitor -- ask how long to monitor after ship when relevant
 
 ### exec
 
@@ -236,8 +260,11 @@ When `session-resume-protocol.md` detects a prior run with a valid `autoresearch
    - The specific inconsistency reported by `<skill-root>/scripts/autoresearch_resume_check.py` (for example retained-metric mismatch, missing main row, or stale counters).
 2. Ask exactly one question with two choices:
    - **Resume:** use the JSON `config` as the authoritative source. Briefly confirm scope, metric, and verify command in a single confirmation block.
-   - **Fresh start:** rename old artifacts with `.prev` suffixes and proceed with the full wizard.
+   - **Fresh start:** archive old artifacts with `.prev` suffixes and proceed with the full wizard.
 3. If the user chooses to resume, present a condensed confirmation summary (same format as Step 3 above but sourced from JSON `config` instead of repo scanning).
-4. The user replies "go" and the loop starts. No further rounds.
+4. The user replies "go" and the loop starts immediately:
+   - if they chose resume, call `autoresearch_runtime_ctl.py launch ...`
+   - if they chose fresh start, call `autoresearch_runtime_ctl.py launch --fresh-start ...`
+   No further rounds.
 
 The mini-wizard respects the same two-phase boundary: all questions happen before launch.

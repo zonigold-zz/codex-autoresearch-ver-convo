@@ -5,12 +5,10 @@ import argparse
 import json
 from pathlib import Path
 
+from autoresearch_decision import apply_status_transition
 from autoresearch_helpers import (
     AutoresearchError,
     append_rows,
-    build_state_payload,
-    clone_state_payload,
-    decimal_to_json_number,
     improvement,
     make_row,
     parse_decimal,
@@ -19,6 +17,8 @@ from autoresearch_helpers import (
     resolve_state_path_for_log,
     write_json_atomic,
 )
+from autoresearch_lessons import append_iteration_lesson, lessons_path_from_results
+from autoresearch_preflight import evaluate_repo_preflight
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -65,13 +65,31 @@ def main() -> int:
     args = parser.parse_args()
 
     results_path = Path(args.results_path)
+    repo_hint = results_path.parent if results_path.is_absolute() else None
     parsed = parse_results_log(results_path)
-    state_path = resolve_state_path_for_log(args.state_path, parsed)
+    state_path = resolve_state_path_for_log(args.state_path, parsed, cwd=repo_hint)
     _, payload, reconstructed, direction = require_consistent_state(
         results_path,
         state_path,
         parsed=parsed,
     )
+    config = dict(payload.get("config", {}))
+    repo = repo_hint or Path.cwd().resolve()
+    preflight = evaluate_repo_preflight(
+        repo=repo,
+        results_path=results_path,
+        state_path_arg=args.state_path,
+        verify_command=str(config.get("verify", "")),
+        scope_text=str(config.get("scope") or ""),
+        commit_phase="prebatch",
+        include_health=True,
+        rollback_policy=None,
+        destructive_approved=False,
+    )
+    if preflight["decision"] == "block":
+        raise AutoresearchError(
+            "Parallel batch preflight failed: " + "; ".join(preflight["blockers"])
+        )
     batch = load_batch(Path(args.batch_file))
 
     next_iteration = reconstructed["iteration"] + 1
@@ -231,53 +249,23 @@ def main() -> int:
     )
     append_rows(results_path, worker_rows + [main_row])
 
-    new_payload = clone_state_payload(payload)
-    state = new_payload["state"]
-    state["iteration"] = next_iteration
-    state["last_status"] = main_status
-    state["last_trial_commit"] = last_trial_commit
-    state["last_trial_metric"] = decimal_to_json_number(main_metric)
-
-    if main_status == "keep":
-        state["keeps"] = state.get("keeps", 0) + 1
-        state["current_metric"] = decimal_to_json_number(main_metric)
-        state["last_commit"] = main_commit
-        state["consecutive_discards"] = 0
-        state["pivot_count"] = 0
-        previous_best = parse_decimal(state["best_metric"], "best_metric")
-        if improvement(main_metric, previous_best, direction):
-            state["best_metric"] = decimal_to_json_number(main_metric)
-            state["best_iteration"] = next_iteration
-    else:
-        state["discards"] = state.get("discards", 0) + 1
-        state["consecutive_discards"] = state.get("consecutive_discards", 0) + 1
-
-    rewritten_summary = {
-        "iteration": state["iteration"],
-        "baseline_metric": parse_decimal(state["baseline_metric"], "baseline_metric"),
-        "best_metric": parse_decimal(state["best_metric"], "best_metric"),
-        "best_iteration": state["best_iteration"],
-        "current_metric": parse_decimal(state["current_metric"], "current_metric"),
-        "last_commit": state["last_commit"],
-        "last_trial_commit": state["last_trial_commit"],
-        "last_trial_metric": parse_decimal(state["last_trial_metric"], "last_trial_metric"),
-        "keeps": state["keeps"],
-        "discards": state["discards"],
-        "crashes": state["crashes"],
-        "no_ops": state.get("no_ops", 0),
-        "blocked": state.get("blocked", 0),
-        "splits": state.get("splits", 0),
-        "consecutive_discards": state["consecutive_discards"],
-        "pivot_count": state["pivot_count"],
-        "last_status": state["last_status"],
-    }
-    final_payload = build_state_payload(
-        mode=new_payload["mode"],
-        run_tag=new_payload.get("run_tag") or None,
-        config=new_payload["config"],
-        summary=rewritten_summary,
+    trial_commit = main_commit if main_status == "keep" else last_trial_commit
+    final_payload = apply_status_transition(
+        payload,
+        status=main_status,
+        metric=main_metric,
+        commit=trial_commit,
+        direction=direction,
+        next_iteration=next_iteration,
     )
     write_json_atomic(state_path, final_payload)
+    append_iteration_lesson(
+        lessons_path=lessons_path_from_results(results_path),
+        state_payload=final_payload,
+        status=main_status,
+        description=main_description,
+        iteration=next_iteration,
+    )
 
     print(
         json.dumps(
@@ -285,7 +273,7 @@ def main() -> int:
                 "iteration": next_iteration,
                 "selected_worker": None if winner is None else winner["worker_id"],
                 "status": main_status,
-                "retained_metric": state["current_metric"],
+                "retained_metric": final_payload["state"]["current_metric"],
                 "batch_file": str(args.batch_file),
                 "message": f"Parallel batch recorded at iteration {next_iteration}.",
             },

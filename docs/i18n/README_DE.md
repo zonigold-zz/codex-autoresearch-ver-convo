@@ -437,15 +437,14 @@ Siehe `references/parallel-experiments-protocol.md`.
 
 ## Sitzungswiederaufnahme
 
-Wenn Codex in einem interaktiven Modus einen zuvor unterbrochenen Lauf erkennt, kann es vom letzten konsistenten Zustand fortfahren, anstatt von vorne zu beginnen. Die primaere Wiederherstellungsquelle ist `autoresearch-state.json`, ein kompakter Zustandssnapshot, der bei jeder Iteration atomar aktualisiert wird. Im Modus `exec` liegt der Zustand nur in einer temporaeren Datei unter `/tmp/codex-autoresearch-exec/...` und wird vor dem Beenden entfernt.
+Wenn Codex in einem interaktiven Modus einen zuvor unterbrochenen verwalteten Lauf erkennt, kann es vom letzten konsistenten Zustand fortfahren, anstatt von vorne zu beginnen. Die primaere Wiederherstellungsquelle ist `autoresearch-state.json`, ein kompakter Zustandssnapshot, der bei jeder Iteration atomar aktualisiert wird. Im Modus `exec` liegt der Zustand nur in einer temporaeren Datei unter `/tmp/codex-autoresearch-exec/...` und muss vom `exec`-Workflow vor dem Beenden explizit entfernt werden. Eine direkte Wiederaufnahme ueber den entkoppelten Laufzeit-Controller setzt ein vorhandenes `autoresearch-launch.json` voraus; ohne dieses bestaetigte Start-Manifest folgt der Lauf dem normalen Startfluss.
 
 Wiederherstellungsprioritaet fuer interaktive Modi:
 
-1. **JSON + TSV konsistent:** sofortige Wiederaufnahme, Assistent uebersprungen
+1. **JSON + TSV konsistent, Launch-Manifest vorhanden:** sofortige Wiederaufnahme, Assistent uebersprungen
 2. **JSON gueltig, TSV inkonsistent:** Mini-Assistent (1 Runde Bestaetigung)
-3. **JSON fehlt, TSV vorhanden:** Legacy-TSV-Wiederherstellung
-4. **JSON beschaedigt:** Umbenennung in `.bak`, Fallback auf TSV
-5. **Keines vorhanden:** Neustart (alte Protokolle umbenannt)
+3. **JSON fehlt oder ist beschaedigt, TSV vorhanden:** Der Helper rekonstruiert den beibehaltenen Zustand zur Bestaetigung und faehrt dann mit einem neuen Launch-Manifest fort
+4. **Keines vorhanden:** Neustart (vorherige persistente Run-Control-Artefakte werden archiviert)
 
 Siehe `references/session-resume-protocol.md`.
 
@@ -494,9 +493,39 @@ iteration  commit   metric  delta   status    description
 3          c3d4e5f  38      -3      keep      type-narrow API response handlers
 ```
 
-Im Modus `exec` existiert der Zustandssnapshot nur unter `/tmp/codex-autoresearch-exec/...` und wird vor dem Beenden bereinigt. Aktualisieren Sie diese Artefakte ueber die gebuendelten Helper-Skripte unter `<skill-root>/scripts/...`, nicht ueber das `scripts/`-Verzeichnis des Ziel-Repos.
+Im Modus `exec` existiert der Zustandssnapshot nur unter `/tmp/codex-autoresearch-exec/...` und muss vom `exec`-Workflow vor dem Beenden explizit bereinigt werden. Aktualisieren Sie diese Artefakte ueber die gebuendelten Helper-Skripte unter `<skill-root>/scripts/...`, nicht ueber das `scripts/`-Verzeichnis des Ziel-Repos.
 
 Beide Dateien werden nicht in git committed. Bei der Sitzungswiederaufnahme wird der JSON-Zustand gegen eine rekonstruierte TSV-Hauptiterationszusammenfassung kreuzvalidiert und nicht gegen die rohe Zeilenanzahl. Fortschrittsberichte werden alle 5 Iterationen ausgegeben. Begrenzte Laeufe geben am Ende eine Zusammenfassung von Baseline bis Bestwert aus.
+
+Diese Zustandsartefakte werden von den mit dem Skill gebuendelten Helper-Skripten verwaltet. Rufe sie ueber den installierten Skill-Pfad auf, nicht ueber das `scripts/`-Verzeichnis des Ziel-Repositories. Hier bezeichnet `<skill-root>` das Verzeichnis mit der geladenen `SKILL.md`; bei der ueblichen repo-lokalen Installation ist das `.agents/skills/codex-autoresearch`.
+
+- `python3 <skill-root>/scripts/autoresearch_init_run.py`
+- `python3 <skill-root>/scripts/autoresearch_record_iteration.py`
+- `python3 <skill-root>/scripts/autoresearch_resume_check.py`
+- `python3 <skill-root>/scripts/autoresearch_select_parallel_batch.py`
+- `python3 <skill-root>/scripts/autoresearch_exec_state.py`
+- `python3 <skill-root>/scripts/autoresearch_launch_gate.py`
+- `python3 <skill-root>/scripts/autoresearch_resume_prompt.py`
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py`
+- `python3 <skill-root>/scripts/autoresearch_commit_gate.py`
+- `python3 <skill-root>/scripts/autoresearch_health_check.py`
+- `python3 <skill-root>/scripts/autoresearch_decision.py`
+- `python3 <skill-root>/scripts/autoresearch_lessons.py`
+- `python3 <skill-root>/scripts/autoresearch_supervisor_status.py`
+
+Fuer Menschen gibt es jetzt nur noch einen einzigen Haupteinstieg: **`$codex-autoresearch`**.
+
+- Beim ersten interaktiven Lauf beschreiben Sie das Ziel natuerlich, beantworten die Rueckfragen und antworten dann mit `go`
+- Nach `go` schreibt Codex automatisch `autoresearch-launch.json` und startet die entkoppelte Laufzeitsteuerung
+- Jeder weitere verwaltete Laufzyklus startet eine nicht-interaktive `codex exec`-Sitzung und uebergibt den Runtime-Prompt ueber stdin
+- Spaetere Anfragen wie `status`, `stop` oder `resume` laufen weiterhin ueber dasselbe `$codex-autoresearch`
+- `Mode: exec` bleibt der erweiterte Pfad fuer CI und voll spezifizierte Automatisierung
+
+Direkte Steuerbefehle bleiben fuer Skripting oder das Debugging der Laufzeit verfuegbar:
+
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py status --repo <repo>`
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py stop --repo <repo>`
+
 
 ---
 
@@ -504,7 +533,7 @@ Beide Dateien werden nicht in git committed. Bei der Sitzungswiederaufnahme wird
 
 | Bedenken | Behandlung |
 |----------|------------|
-| Unsauberer Arbeitsbaum | Die Schleife verweigert den Start; schlaegt den Modus `plan` oder einen sauberen Branch vor |
+| Unsauberer Arbeitsbaum | Die Laufzeit-Vorpruefung blockiert Start oder Relaunch, bis Aenderungen ausserhalb des vorgesehenen Bereichs bereinigt oder isoliert sind |
 | Fehlgeschlagene Aenderung | Verwendet die vor dem Start genehmigte Rollback-Strategie: `git reset --hard HEAD~1` nur in einem isolierten Experiment-Branch/Worktree mit Genehmigung, sonst `git revert --no-edit HEAD`; das Ergebnisprotokoll bleibt der Audit-Trail |
 | Guard-Fehlschlag | Bis zu 2 Ueberarbeitungsversuche, dann Zuruecksetzen |
 | Syntaxfehler | Sofortige automatische Korrektur, zaehlt nicht als Iteration |
@@ -546,7 +575,23 @@ codex-autoresearch/
       README_PT.md                  # Portugiesisch
       README_RU.md                  # Russisch
   scripts/
-    validate_skill_structure.sh     # Strukturvalidierungsskript
+    validate_skill_structure.sh     # structure validator
+    autoresearch_helpers.py         # gemeinsame Hilfsskripte fuer TSV / JSON / Laufzeit
+    autoresearch_launch_gate.py     # entscheidet vor dem Start zwischen fresh / resumable / needs_human
+    autoresearch_resume_prompt.py   # baut den vom Laufzeit-Controller verwendeten Prompt aus der gespeicherten Konfiguration
+    autoresearch_runtime_ctl.py     # steuert launch / create-launch / start / status / stop des Laufzeit-Controllers
+    autoresearch_commit_gate.py     # git / artifact / rollback gate
+    autoresearch_decision.py        # structured keep / discard / crash policy helpers
+    autoresearch_health_check.py    # executable health checks
+    autoresearch_lessons.py         # structured lessons append / list helpers
+    autoresearch_init_run.py        # initialize baseline log + state
+    autoresearch_record_iteration.py # append one main iteration + update state
+    autoresearch_resume_check.py    # decide full_resume / mini_wizard / fallback
+    autoresearch_select_parallel_batch.py # log worker rows + batch winner
+    autoresearch_exec_state.py      # resolve / cleanup exec scratch state
+    autoresearch_supervisor_status.py # decide relaunch / stop / needs_human
+    check_skill_invariants.py       # validate real skill-run artifacts
+    run_skill_e2e.sh                # disposable Codex CLI smoke harness
   references/
     core-principles.md              # universelle Prinzipien
     autonomous-loop-protocol.md     # Schleifen-Protokollspezifikation
@@ -584,9 +629,9 @@ codex-autoresearch/
 
 **Wie viele Iterationen?** Haengt von der Aufgabe ab. 5 fuer gezielte Korrekturen, 10-20 fuer Exploration, unbegrenzt fuer Nachtlaeufe.
 
-**Lernt es ueber Laeufe hinweg?** Ja. Nach jedem iterativen Lauf ausser `exec` werden Erkenntnisse extrahiert und zu Beginn des naechsten Laufs herangezogen. Die Erkenntnisdatei bleibt ueber Sitzungen hinweg erhalten; `exec` liest nur vorhandene Erkenntnisse.
+**Lernt es ueber Laeufe hinweg?** Ja. Erkenntnisse werden nach jedem `keep`, nach jedem `pivot` und beim Abschluss der Laufzeit ohne aktuelle Erkenntnis extrahiert. Die Erkenntnisdatei bleibt ueber Sitzungen hinweg erhalten; `exec` liest nur vorhandene Erkenntnisse.
 
-**Kann es nach einer Unterbrechung fortfahren?** Ja. Beim naechsten Aufruf erkennt es den vorherigen Lauf und setzt vom letzten konsistenten Zustand fort.
+**Kann es nach einer Unterbrechung fortfahren?** Ja, sofern es sich um einen verwalteten Lauf mit `autoresearch-launch.json`, `research-results.tsv` und `autoresearch-state.json` handelt. Fehlt der bestaetigte Startzustand, beginnen Sie ueber den normalen Startfluss neu.
 
 **Kann es im Web suchen?** Ja, wenn es nach mehreren Strategiewechseln feststeckt. Websuche-Ergebnisse werden als Hypothesen behandelt und mechanisch verifiziert.
 

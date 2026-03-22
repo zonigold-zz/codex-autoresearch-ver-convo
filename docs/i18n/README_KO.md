@@ -437,15 +437,14 @@ security + fix               # 감사와 수정을 한 번에 수행
 
 ## 세션 재개
 
-Codex가 인터랙티브 모드에서 이전에 중단된 실행을 감지하면 처음부터 다시 시작하는 대신 마지막 일관된 상태에서 재개할 수 있습니다. 주요 복구 소스는 `autoresearch-state.json`으로, 각 반복마다 원자적으로 업데이트되는 컴팩트한 상태 스냅샷입니다. `exec` 모드에서는 상태가 `/tmp/codex-autoresearch-exec/...` 아래의 임시 파일에만 존재하며 종료 전에 정리됩니다.
+Codex가 인터랙티브 모드에서 이전에 중단된 관리형 run 을 감지하면 처음부터 다시 시작하는 대신 마지막 일관된 상태에서 재개할 수 있습니다. 주요 복구 소스는 `autoresearch-state.json`으로, 각 반복마다 원자적으로 업데이트되는 컴팩트한 상태 스냅샷입니다. `exec` 모드에서는 상태가 `/tmp/codex-autoresearch-exec/...` 아래의 임시 파일에만 존재하며, `exec` 워크플로가 종료 전에 이를 명시적으로 정리해야 합니다. 분리된 런타임 컨트롤러가 직접 재개하려면 기존 `autoresearch-launch.json` 이 있어야 하며, 이 확인된 시작 매니페스트가 없으면 일반 launch 흐름으로 새로 시작해야 합니다.
 
 복구 우선순위(인터랙티브 모드):
 
-1. **JSON + TSV 일치:** 즉시 재개, 마법사 건너뛰기
+1. **JSON + TSV 일치, 그리고 launch manifest 존재:** 즉시 재개, 마법사 건너뛰기
 2. **JSON 유효, TSV 불일치:** 미니 마법사 (1라운드 확인)
-3. **JSON 없음, TSV 존재:** 레거시 TSV 복구
-4. **JSON 손상:** `.bak`으로 이름 변경, TSV로 폴백
-5. **둘 다 없음:** 새로 시작 (이전 로그 이름 변경)
+3. **JSON 없음 또는 손상, TSV 존재:** 보조 스크립트가 유지 상태를 재구성해 확인한 뒤 새 시작 매니페스트로 계속 진행
+4. **둘 다 없음:** 새로 시작 (이전의 영속적인 run-control 아티팩트를 보관)
 
 `references/session-resume-protocol.md` 참조.
 
@@ -494,9 +493,39 @@ iteration  commit   metric  delta   status    description
 3          c3d4e5f  38      -3      keep      type-narrow API response handlers
 ```
 
-`exec` 모드에서는 상태 스냅샷이 `/tmp/codex-autoresearch-exec/...` 임시 위치에만 존재하고 종료 전에 정리됩니다. 이러한 아티팩트는 대상 저장소의 `scripts/` 디렉터리가 아니라 `<skill-root>/scripts/...` 아래의 bundled helper scripts로 업데이트하세요.
+`exec` 모드에서는 상태 스냅샷이 `/tmp/codex-autoresearch-exec/...` 임시 위치에만 존재하고, `exec` 워크플로가 종료 전에 이를 명시적으로 정리해야 합니다. 이러한 아티팩트는 대상 저장소의 `scripts/` 디렉터리가 아니라 `<skill-root>/scripts/...` 아래의 bundled helper scripts로 업데이트하세요.
 
 두 파일 모두 git에 커밋하지 않습니다. 세션 재개 시 JSON 상태는 TSV 메인 반복 요약과 교차 검증되며, 단순 행 수 자체를 기준으로 삼지 않습니다. 진행 요약은 5회 반복마다 출력됩니다. 유한 실행은 마지막에 기준선에서 최고값까지의 요약을 출력합니다.
+
+이 상태 아티팩트는 skill 과 함께 제공되는 helper scripts 가 관리합니다. 대상 저장소 자체의 `scripts/` 디렉터리가 아니라 설치된 skill 경로를 통해 호출하세요. 여기서 `<skill-root>` 는 현재 로드된 `SKILL.md` 가 있는 디렉터리를 뜻하며, 일반적인 repo-local 설치에서는 `.agents/skills/codex-autoresearch` 입니다.
+
+- `python3 <skill-root>/scripts/autoresearch_init_run.py`
+- `python3 <skill-root>/scripts/autoresearch_record_iteration.py`
+- `python3 <skill-root>/scripts/autoresearch_resume_check.py`
+- `python3 <skill-root>/scripts/autoresearch_select_parallel_batch.py`
+- `python3 <skill-root>/scripts/autoresearch_exec_state.py`
+- `python3 <skill-root>/scripts/autoresearch_launch_gate.py`
+- `python3 <skill-root>/scripts/autoresearch_resume_prompt.py`
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py`
+- `python3 <skill-root>/scripts/autoresearch_commit_gate.py`
+- `python3 <skill-root>/scripts/autoresearch_health_check.py`
+- `python3 <skill-root>/scripts/autoresearch_decision.py`
+- `python3 <skill-root>/scripts/autoresearch_lessons.py`
+- `python3 <skill-root>/scripts/autoresearch_supervisor_status.py`
+
+사람 사용자를 위한 공개 진입점은 이제 **`$codex-autoresearch`** 하나뿐입니다.
+
+- 첫 대화형 실행에서는 목표를 자연스럽게 설명하고, 확인 질문에 답한 뒤 `go`라고 말하면 됩니다
+- `go` 이후 Codex는 `autoresearch-launch.json` 을 기록하고 분리된 실행 컨트롤러를 자동으로 시작합니다
+- 이후 각 managed runtime cycle 은 runtime prompt 를 stdin 으로 전달하는 비대화형 `codex exec` 세션으로 실행됩니다
+- 이후 `status`, `stop`, `resume` 요청도 계속 같은 `$codex-autoresearch` 를 통해 처리합니다
+- `Mode: exec` 는 CI 또는 완전히 지정된 자동화를 위한 고급 경로로 유지됩니다
+
+스크립팅이나 실행 계층 디버깅을 위한 직접 제어 명령도 계속 사용할 수 있습니다.
+
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py status --repo <repo>`
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py stop --repo <repo>`
+
 
 ---
 
@@ -504,7 +533,7 @@ iteration  commit   metric  delta   status    description
 
 | 우려 사항 | 처리 방식 |
 |-----------|-----------|
-| 더티 워크트리 | 루프가 시작을 거부. `plan` 모드 또는 클린 브랜치를 제안 |
+| 더티 워크트리 | runtime 사전 점검이 범위 밖 변경이 정리되거나 격리될 때까지 시작과 재시작을 차단 |
 | 실패한 변경 | 시작 전에 승인된 롤백 전략을 사용합니다. 격리된 실험 브랜치/워크트리에서 승인된 경우 `git reset --hard HEAD~1`, 그 외에는 `git revert --no-edit HEAD`를 사용합니다. 결과 로그가 감사 추적입니다 |
 | Guard 실패 | 최대 2회 재조정 후 롤백 |
 | 구문 오류 | 즉시 수정. 반복으로 카운트하지 않음 |
@@ -546,7 +575,23 @@ codex-autoresearch/
       README_PT.md                  # 포르투갈어
       README_RU.md                  # 러시아어
   scripts/
-    validate_skill_structure.sh     # 구조 검증 스크립트
+    validate_skill_structure.sh     # structure validator
+    autoresearch_helpers.py         # TSV / JSON / runtime 을 다루는 공용 헬퍼
+    autoresearch_launch_gate.py     # 시작 전에 fresh / resumable / needs_human 을 판정
+    autoresearch_resume_prompt.py   # 저장된 설정에서 runtime 관리용 프롬프트를 만든다
+    autoresearch_runtime_ctl.py     # runtime 의 launch / create-launch / start / status / stop 을 제어
+    autoresearch_commit_gate.py     # git / artifact / rollback gate
+    autoresearch_decision.py        # structured keep / discard / crash policy helpers
+    autoresearch_health_check.py    # executable health checks
+    autoresearch_lessons.py         # structured lessons append / list helpers
+    autoresearch_init_run.py        # initialize baseline log + state
+    autoresearch_record_iteration.py # append one main iteration + update state
+    autoresearch_resume_check.py    # decide full_resume / mini_wizard / fallback
+    autoresearch_select_parallel_batch.py # log worker rows + batch winner
+    autoresearch_exec_state.py      # resolve / cleanup exec scratch state
+    autoresearch_supervisor_status.py # decide relaunch / stop / needs_human
+    check_skill_invariants.py       # validate real skill-run artifacts
+    run_skill_e2e.sh                # disposable Codex CLI smoke harness
   references/
     core-principles.md              # 범용 원칙
     autonomous-loop-protocol.md     # 루프 프로토콜 사양
@@ -584,9 +629,9 @@ codex-autoresearch/
 
 **몇 번 반복하나요?** 작업에 따라 다릅니다. 타겟 수정은 5회, 탐색적인 것은 10-20회, 야간 실행은 무제한입니다.
 
-**실행 간에 학습하나요?** 예. `exec` 를 제외한 각 반복 실행 후 교훈이 추출되고, 다음 실행 시작 시 참조됩니다. 교훈 파일은 세션 간에 유지됩니다. `exec` 는 기존 교훈만 읽고 새 교훈은 쓰지 않습니다.
+**실행 간에 학습하나요?** 예. 교훈은 각 `keep`, 각 `pivot`, 그리고 최근 교훈이 없는 상태로 관리형 실행이 종료될 때 추출됩니다. 교훈 파일은 세션 간에 유지됩니다. `exec` 는 기존 교훈만 읽고 새 교훈은 쓰지 않습니다.
 
-**중단 후 재개할 수 있나요?** 예. 다음 호출 시 이전 실행을 감지하고 마지막 일관 상태에서 재개합니다.
+**중단 후 재개할 수 있나요?** 예. 다만 `autoresearch-launch.json`, `research-results.tsv`, `autoresearch-state.json` 이 이미 있는 관리형 run 이어야 합니다. 확인된 launch state 가 없으면 일반 launch 흐름으로 새 run 을 시작하세요.
 
 **Web 검색이 가능한가요?** 예. 여러 번의 전략 피봇 후 정체되었을 때 사용됩니다. Web 검색 결과는 가설로 취급되어 기계적으로 검증됩니다.
 

@@ -76,6 +76,9 @@ Codex: I found 47 `any` occurrences across src/**/*.ts.
 
        Reply "go" to start, or tell me what to change.
 
+       For truly unattended runs, launch Codex with approvals / sandbox settings
+       that will not interrupt git commit or revert commands.
+
 You:   Go, run overnight.
 
 Codex: Starting -- baseline: 47. Iterating until interrupted.
@@ -356,6 +359,8 @@ You:   Report first, and yes cover auth too.
 
 Gated release verification. Auto-detects what you are shipping (PR, deployment, release).
 
+Internally, ship mode still derives a shipment scope, a readiness metric, and a mechanical verify command from the checklist before launch.
+
 ```
 You:   Ship it
 
@@ -437,15 +442,14 @@ See `references/parallel-experiments-protocol.md`.
 
 ## Session Resume
 
-If Codex detects a prior interrupted run, it can resume from the last consistent state instead of starting over. The primary recovery source is `autoresearch-state.json`, a compact state snapshot atomically updated each iteration. The TSV results log serves as a cross-validation fallback.
+If Codex detects a prior interrupted managed run, it can resume from the last consistent state instead of starting over. The primary recovery source is `autoresearch-state.json`, a compact state snapshot atomically updated each iteration. The TSV results log serves as a cross-validation fallback. Direct detached-runtime resume requires an existing `autoresearch-launch.json`; if that confirmed launch state is missing, start a new run through the normal launch flow instead.
 
 Recovery priority:
 
-1. **JSON + TSV summary consistent:** resume immediately, skip wizard
+1. **JSON + TSV summary consistent, launch manifest present:** resume immediately, skip wizard
 2. **JSON valid, helper reports mismatch:** mini-wizard (1 round) to re-confirm
-3. **JSON missing, TSV exists:** helper reconstructs retained state from TSV
-4. **JSON corrupt:** rename to `.bak`, fall back to TSV
-5. **Neither exists:** fresh start (old logs renamed)
+3. **JSON missing or corrupt, TSV exists:** helper reconstructs retained state for confirmation, then continue with a fresh launch manifest
+4. **Neither exists:** fresh start (prior persistent run-control artifacts archived)
 
 See `references/session-resume-protocol.md`.
 
@@ -481,22 +485,25 @@ See `references/exec-workflow.md`.
 
 ## Results Log
 
-Every iteration is recorded in two complementary formats:
+Every iteration is recorded in complementary artifacts:
 
 - **`research-results.tsv`** -- full audit trail, with one main row per iteration plus optional parallel worker rows
 - **`autoresearch-state.json`** -- compact state snapshot for fast session resume in interactive modes
+- **`autoresearch-launch.json`** -- confirmed launch manifest written after the user says `go`
+- **`autoresearch-runtime.json`** -- runtime control state (PID, status, last decision)
+- **`autoresearch-runtime.log`** -- detached runtime log for long runs
 
-In `exec` mode, the state snapshot is scratch-only under `/tmp/codex-autoresearch-exec/...` and is cleaned up before exit.
+In `exec` mode, the state snapshot is scratch-only under `/tmp/codex-autoresearch-exec/...`. The exec workflow is responsible for removing that scratch JSON before exit, typically via `autoresearch_exec_state.py --cleanup`.
 
 ```
 iteration  commit   metric  delta   status    description
 0          a1b2c3d  47      0       baseline  initial any count
 1          b2c3d4e  41      -6      keep      replace any in auth module with strict types
-2          -        49      +8      discard   generic wrapper introduced new anys
+2          c3d4e5f  49      +8      discard   generic wrapper introduced new anys
 3          c3d4e5f  38      -3      keep      type-narrow API response handlers
 ```
 
-Both files stay uncommitted and are treated as autoresearch-owned artifacts, not normal experiment diffs. On session resume, the JSON state is cross-validated against a reconstructed TSV main-iteration summary instead of raw row counts. Progress summaries print every 5 iterations. Bounded runs print a final baseline-to-best summary.
+These files stay uncommitted and are treated as autoresearch-owned artifacts, not normal experiment diffs. On session resume, the JSON state is cross-validated against a reconstructed TSV main-iteration summary instead of raw row counts. Progress summaries print every 5 iterations. Bounded runs print a final baseline-to-best summary.
 
 Stateful artifact updates are backed by bundled helper scripts. Call them via the installed skill path, not the target repo's own `scripts/` directory. Here `<skill-root>` means the directory containing the loaded `SKILL.md`; in the common repo-local install this is `.agents/skills/codex-autoresearch`.
 
@@ -505,6 +512,30 @@ Stateful artifact updates are backed by bundled helper scripts. Call them via th
 - `python3 <skill-root>/scripts/autoresearch_resume_check.py`
 - `python3 <skill-root>/scripts/autoresearch_select_parallel_batch.py`
 - `python3 <skill-root>/scripts/autoresearch_exec_state.py`
+- `python3 <skill-root>/scripts/autoresearch_launch_gate.py`
+- `python3 <skill-root>/scripts/autoresearch_resume_prompt.py`
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py`
+- `python3 <skill-root>/scripts/autoresearch_commit_gate.py`
+- `python3 <skill-root>/scripts/autoresearch_health_check.py`
+- `python3 <skill-root>/scripts/autoresearch_decision.py`
+- `python3 <skill-root>/scripts/autoresearch_lessons.py`
+- `python3 <skill-root>/scripts/autoresearch_supervisor_status.py`
+
+Human-facing usage now has a single entrypoint: **`$codex-autoresearch`**.
+
+- First interactive run: describe the goal naturally, answer the confirmation questions, then reply `go`.
+- After `go`, Codex calls `autoresearch_runtime_ctl.py launch`, which atomically writes `autoresearch-launch.json` and starts the detached runtime controller.
+- Each detached runtime cycle launches a non-interactive `codex exec` session with the runtime prompt fed on stdin, so it does not depend on the interactive TUI.
+- If the runtime cannot launch that `codex exec` session at all, it transitions to `needs_human` instead of silently falling back to an idle state.
+- Before the detached runtime starts a session or relaunches one, it runs a script-level preflight: `autoresearch_health_check.py` for integrity checks and `autoresearch_commit_gate.py` for scope-aware git safety.
+- Later `status`, `stop`, or `resume` requests should still go through `$codex-autoresearch`; the skill uses `autoresearch_runtime_ctl.py` internally.
+- `Mode: exec` remains the advanced / CI path for fully specified non-interactive runs.
+
+Advanced backend usage is available when you are scripting or debugging the runtime directly:
+
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py status --repo <repo>`
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py stop --repo <repo>`
+
 
 ---
 
@@ -512,7 +543,8 @@ Stateful artifact updates are backed by bundled helper scripts. Call them via th
 
 | Concern | How it is handled |
 |---------|-------------------|
-| Dirty worktree | Loop refuses to start; suggests `plan` mode or clean branch |
+| Dirty worktree | Runtime preflight blocks launch or relaunch until out-of-scope changes are cleaned up or isolated |
+| Health / state drift | Runtime preflight runs resume-helper-based integrity checks before every detached session and relaunch |
 | Failed change | Uses the rollback strategy approved before launch: approved hard reset in an isolated experiment branch/worktree, otherwise `git revert --no-edit HEAD`; results log remains the audit trail |
 | Guard failure | Up to 2 rework attempts before discarding |
 | Syntax error | Auto-fix immediately, does not count as iteration |
@@ -557,15 +589,25 @@ codex-autoresearch/
     validate_skill_structure.sh     # structure validator
     run_contributor_gate.sh         # contributor acceptance gate
     autoresearch_helpers.py         # shared TSV/JSON helpers
+    autoresearch_launch_gate.py     # decide fresh / resumable / needs_human before launch
+    autoresearch_resume_prompt.py   # build the runtime-managed prompt from saved config
+    autoresearch_runtime_ctl.py     # launch / create-launch / start / status / stop runtime controller
+    autoresearch_commit_gate.py     # git/artifact/rollback gate
+    autoresearch_decision.py        # structured keep/discard/crash policy helpers
+    autoresearch_health_check.py    # executable health checks
+    autoresearch_lessons.py         # structured lessons append/list helpers
     autoresearch_init_run.py        # initialize baseline log + state
     autoresearch_record_iteration.py # append one main iteration + update state
     autoresearch_resume_check.py    # decide full_resume / mini_wizard / fallback
     autoresearch_select_parallel_batch.py # log worker rows + batch winner
     autoresearch_exec_state.py      # resolve / cleanup exec scratch state
+    autoresearch_supervisor_status.py # decide relaunch / stop / needs_human
     check_skill_invariants.py       # validate real skill-run artifacts
     run_skill_e2e.sh                # disposable Codex CLI smoke harness
   tests/
-    test_autoresearch_scripts.py    # stdlib smoke tests for helper scripts
+    autoresearch/                   # stdlib smoke tests for helper scripts
+      base.py                       # shared script/runtime test helpers
+      results/                      # results/state/exec/parallel coverage
   references/
     core-principles.md              # universal principles
     autonomous-loop-protocol.md     # loop protocol specification
@@ -597,15 +639,15 @@ codex-autoresearch/
 
 **Works with any language?** Yes. The protocol is language-agnostic. Only the verify command is domain-specific.
 
-**How do I stop it?** Interrupt Codex, or set `Iterations: N`. Git state is always consistent because commits happen before verification.
+**How do I stop it?** Ask `$codex-autoresearch` to stop the current run, or call `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py stop --repo <repo>` if you are automating the backend directly. `Iterations: N` and stop conditions still work too.
 
 **Does security mode touch my code?** No. Read-only analysis. Tell Codex to "also fix critical findings" during setup to opt into remediation.
 
 **How many iterations?** Depends on the task. 5 for targeted fixes, 10-20 for exploration, unlimited for overnight runs.
 
-**Does it learn across runs?** Yes. Lessons are extracted after each run and consulted at the start of the next one. The lessons file persists across sessions.
+**Does it learn across runs?** Yes. Lessons are extracted after each kept iteration, after each pivot, and at runtime completion when no recent lesson exists. The lessons file persists across sessions and is consulted at the start of the next run.
 
-**Can it resume after an interruption?** Yes. On the next invocation, it detects the prior run and resumes from the last consistent state.
+**Can it resume after an interruption?** Yes, for managed runs that already have `autoresearch-launch.json`, `research-results.tsv`, and `autoresearch-state.json`. If the confirmed launch state is missing, start a new run through the normal launch flow.
 
 **Can it search the web?** Yes, when stuck after multiple strategy pivots. Web search results are treated as hypotheses and verified mechanically.
 

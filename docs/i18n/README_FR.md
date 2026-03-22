@@ -438,15 +438,14 @@ Voir `references/parallel-experiments-protocol.md`.
 
 ## Reprise de session
 
-Si Codex detecte une execution precedente interrompue en mode interactif, il peut reprendre depuis le dernier etat coherent au lieu de recommencer. La source de recuperation principale est `autoresearch-state.json`, un instantane d'etat compact mis a jour atomiquement a chaque iteration. En mode `exec`, l'etat n'existe que dans un fichier temporaire sous `/tmp/codex-autoresearch-exec/...` puis est nettoye avant la sortie.
+Si Codex detecte une execution geree precedemment interrompue en mode interactif, il peut reprendre depuis le dernier etat coherent au lieu de recommencer. La source de recuperation principale est `autoresearch-state.json`, un instantane d'etat compact mis a jour atomiquement a chaque iteration. En mode `exec`, l'etat n'existe que dans un fichier temporaire sous `/tmp/codex-autoresearch-exec/...` et le workflow `exec` doit le nettoyer explicitement avant la sortie. La reprise directe via le controleur d'execution detache exige un `autoresearch-launch.json` deja present ; si cet etat de lancement confirme manque, il faut repasser par le flux normal de lancement.
 
 Priorite de recuperation en mode interactif :
 
-1. **JSON + TSV coherents :** reprise immediate, assistant saute
+1. **JSON + TSV coherents, manifeste de lancement present :** reprise immediate, assistant saute
 2. **JSON valide, TSV incoherent :** mini-assistant (1 tour de confirmation)
-3. **JSON absent, TSV present :** recuperation TSV historique
-4. **JSON corrompu :** renomme en `.bak`, repli sur TSV
-5. **Aucun des deux :** nouveau depart (anciens journaux renommes)
+3. **JSON absent ou corrompu, TSV present :** l'utilitaire reconstruit l'etat retenu pour confirmation puis continue avec un nouveau manifeste de lancement
+4. **Aucun des deux :** nouveau depart (les artefacts persistants precedents du controle d'execution sont archives)
 
 Voir `references/session-resume-protocol.md`.
 
@@ -495,9 +494,39 @@ iteration  commit   metric  delta   status    description
 3          c3d4e5f  38      -3      keep      type-narrow API response handlers
 ```
 
-En mode `exec`, l'instantane d'etat n'existe que dans `/tmp/codex-autoresearch-exec/...` et est supprime avant la sortie. Mettez a jour ces artefacts via les helper scripts integres sous `<skill-root>/scripts/...`, et non via le repertoire `scripts/` du depot cible.
+En mode `exec`, l'instantane d'etat n'existe que dans `/tmp/codex-autoresearch-exec/...` et le workflow `exec` doit le supprimer explicitement avant la sortie. Mettez a jour ces artefacts via les helper scripts integres sous `<skill-root>/scripts/...`, et non via le repertoire `scripts/` du depot cible.
 
 Les deux fichiers ne sont pas commites dans git. Lors de la reprise de session, l'etat JSON est croise avec un resume reconstruit des iterations principales TSV, et non avec le simple nombre de lignes. Les resumes de progression sont affiches toutes les 5 iterations. Les executions bornees affichent un resume final de la base au meilleur resultat.
+
+Ces artefacts d'etat sont geres par les helper scripts fournis avec le skill. Appelez-les via le chemin du skill installe, et non via le repertoire `scripts/` du depot cible. Ici, `<skill-root>` designe le repertoire contenant le `SKILL.md` charge ; dans l'installation repo-locale courante, c'est `.agents/skills/codex-autoresearch`.
+
+- `python3 <skill-root>/scripts/autoresearch_init_run.py`
+- `python3 <skill-root>/scripts/autoresearch_record_iteration.py`
+- `python3 <skill-root>/scripts/autoresearch_resume_check.py`
+- `python3 <skill-root>/scripts/autoresearch_select_parallel_batch.py`
+- `python3 <skill-root>/scripts/autoresearch_exec_state.py`
+- `python3 <skill-root>/scripts/autoresearch_launch_gate.py`
+- `python3 <skill-root>/scripts/autoresearch_resume_prompt.py`
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py`
+- `python3 <skill-root>/scripts/autoresearch_commit_gate.py`
+- `python3 <skill-root>/scripts/autoresearch_health_check.py`
+- `python3 <skill-root>/scripts/autoresearch_decision.py`
+- `python3 <skill-root>/scripts/autoresearch_lessons.py`
+- `python3 <skill-root>/scripts/autoresearch_supervisor_status.py`
+
+Pour les utilisateurs humains, il n'y a maintenant plus qu'un seul point d'entree principal : **`$codex-autoresearch`**.
+
+- Lors du premier lancement interactif, decrivez naturellement l'objectif, repondez aux questions de confirmation, puis repondez `go`
+- Apres `go`, Codex ecrit `autoresearch-launch.json` et demarre automatiquement le controleur d'execution detache
+- Chaque cycle gere ensuite une session `codex exec` non interactive, avec le prompt runtime transmis via stdin
+- Les demandes ulterieures comme `status`, `stop` ou `resume` passent toujours par le meme `$codex-autoresearch`
+- `Mode: exec` reste la voie avancee pour le CI ou l'automatisation entierement specifiee
+
+Les commandes directes de pilotage restent disponibles pour le scripting ou le debug de l'execution :
+
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py status --repo <repo>`
+- `python3 <skill-root>/scripts/autoresearch_runtime_ctl.py stop --repo <repo>`
+
 
 ---
 
@@ -505,7 +534,7 @@ Les deux fichiers ne sont pas commites dans git. Lors de la reprise de session, 
 
 | Preoccupation | Traitement |
 |---------------|------------|
-| Arbre de travail sale | La boucle refuse de demarrer ; suggere le mode `plan` ou une branche propre |
+| Arbre de travail sale | Le preflight runtime bloque le lancement ou le relancement tant que les changements hors perimetre ne sont pas nettoyes ou isoles |
 | Changement echoue | Utilise la strategie de rollback approuvee avant le lancement : `git reset --hard HEAD~1` seulement dans une branche/worktree d'experience isolee et approuvee, sinon `git revert --no-edit HEAD` ; le journal des resultats reste la trace d'audit |
 | Echec du Guard | Jusqu'a 2 tentatives de correction, puis annulation |
 | Erreur de syntaxe | Correction automatique immediate, ne compte pas comme iteration |
@@ -547,7 +576,23 @@ codex-autoresearch/
       README_PT.md                  # portugais
       README_RU.md                  # russe
   scripts/
-    validate_skill_structure.sh     # script de validation de structure
+    validate_skill_structure.sh     # structure validator
+    autoresearch_helpers.py         # utilitaires partages pour TSV / JSON / runtime
+    autoresearch_launch_gate.py     # decide fresh / resumable / needs_human avant le lancement
+    autoresearch_resume_prompt.py   # construit le prompt pilote par le runtime a partir de la configuration enregistree
+    autoresearch_runtime_ctl.py     # pilote launch / create-launch / start / status / stop du runtime
+    autoresearch_commit_gate.py     # git / artifact / rollback gate
+    autoresearch_decision.py        # structured keep / discard / crash policy helpers
+    autoresearch_health_check.py    # executable health checks
+    autoresearch_lessons.py         # structured lessons append / list helpers
+    autoresearch_init_run.py        # initialize baseline log + state
+    autoresearch_record_iteration.py # append one main iteration + update state
+    autoresearch_resume_check.py    # decide full_resume / mini_wizard / fallback
+    autoresearch_select_parallel_batch.py # log worker rows + batch winner
+    autoresearch_exec_state.py      # resolve / cleanup exec scratch state
+    autoresearch_supervisor_status.py # decide relaunch / stop / needs_human
+    check_skill_invariants.py       # validate real skill-run artifacts
+    run_skill_e2e.sh                # disposable Codex CLI smoke harness
   references/
     core-principles.md              # principes universels
     autonomous-loop-protocol.md     # specification du protocole de boucle
@@ -585,9 +630,9 @@ codex-autoresearch/
 
 **Combien d'iterations ?** Cela depend de la tache. 5 pour les corrections ciblees, 10-20 pour l'exploration, illimite pour les executions de nuit.
 
-**Apprend-il d'une execution a l'autre ?** Oui. Les lecons sont extraites apres chaque execution iterative sauf `exec` et consultees au demarrage de la suivante. Le fichier de lecons persiste entre les sessions ; `exec` ne fait que lire les lecons existantes.
+**Apprend-il d'une execution a l'autre ?** Oui. Les lecons sont extraites apres chaque `keep`, apres chaque `pivot` et a la fin de l'execution geree lorsqu'aucune lecon recente n'existe. Le fichier de lecons persiste entre les sessions ; `exec` ne fait que lire les lecons existantes.
 
-**Peut-il reprendre apres une interruption ?** Oui. Lors de l'invocation suivante, il detecte l'execution precedente et reprend a partir du dernier etat coherent.
+**Peut-il reprendre apres une interruption ?** Oui, pour les executions gerees qui ont deja `autoresearch-launch.json`, `research-results.tsv` et `autoresearch-state.json`. Si l'etat de lancement confirme manque, relancez un nouveau run via le flux normal de lancement.
 
 **Peut-il effectuer des recherches web ?** Oui, lorsqu'il est bloque apres plusieurs pivots strategiques. Les resultats de recherche web sont traites comme des hypotheses et verifies mecaniquement.
 

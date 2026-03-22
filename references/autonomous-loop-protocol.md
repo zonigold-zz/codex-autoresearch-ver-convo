@@ -35,18 +35,29 @@ Fail fast if the loop would be unsafe. Clarify first if the intent is unclear.
 
 Before anything else, check for a prior interrupted run per `references/session-resume-protocol.md`:
 
+Use the launch gate first:
+
+```bash
+python3 <skill-root>/scripts/autoresearch_launch_gate.py ...
+```
+
 1. Check for `autoresearch-state.json` first (primary recovery source), then `research-results.tsv`, `autoresearch-lessons.md`, and recent `experiment:` commits.
 2. Apply the Recovery Priority Matrix from `session-resume-protocol.md`:
    - JSON valid + TSV consistent -> full resume (skip wizard).
    - JSON valid + TSV inconsistent -> mini-wizard (1 round).
-   - JSON missing + TSV exists -> legacy TSV fallback.
+   - JSON missing + TSV exists -> TSV fallback (reconstruct state, confirm, then create a fresh launch manifest).
    - JSON corrupt -> rename to `.bak`, fall back to TSV.
 3. If no prior run is detected, proceed with fresh setup.
 
+Launch-gate interpretation:
+- `fresh` -> continue with the confirmation flow for a new launch.
+- `resumable` -> resume from saved state without inventing a second operator entrypoint.
+- `needs_human` / `blocked_start` -> report the issue or service the runtime-control request first.
+
 Exec-mode exception:
 - Do not resume a prior run.
-- Rename prior persistent `research-results.tsv` / `autoresearch-state.json` artifacts to `.prev` and start fresh.
-- Ignore any old exec scratch state except for cleanup.
+- Rename prior persistent run-control artifacts to `.prev` and start fresh.
+- Ignore any old exec scratch state except for cleanup at fresh start, and let the exec workflow remove the new scratch state before exit.
 
 ### Run Artifact Initialization
 
@@ -86,7 +97,7 @@ Before starting any interactive loop, ALWAYS:
 
 Never silently infer all fields and start iterating. A 30-second confirmation is always cheaper than wasted iterations.
 
-**Two-phase boundary:** All questions happen BEFORE launch. Once the user says "go", the loop becomes fully autonomous. NEVER pause to ask the user anything during the loop -- not for clarification, not for confirmation, not for permission. If you encounter ambiguity mid-loop, apply best practices, log your reasoning in the commit message, and keep iterating. The user may be asleep.
+**Two-phase boundary:** All questions happen BEFORE launch. Once the user says "go", call `autoresearch_runtime_ctl.py launch` so the confirmed launch manifest and detached runtime are created in one script-level handoff. The long-running loop should continue through the runtime, not stay bound to the same foreground turn. Each runtime cycle should launch a non-interactive `codex exec` session, with the generated runtime prompt supplied on stdin. If that `codex exec` session cannot be launched, the runtime must transition to `needs_human` instead of silently falling back to an idle state. After launch, NEVER pause to ask the user anything during the loop -- not for clarification, not for confirmation, not for permission. If you encounter ambiguity mid-loop, apply best practices, log your reasoning in the commit message, and keep iterating. The user may be asleep.
 
 Exec-mode exception:
 - Do not ask clarifying or launch questions.
@@ -110,6 +121,9 @@ Treat these files as experiment-owned artifacts, not unrelated user changes:
 
 - `research-results.tsv`
 - `autoresearch-state.json`
+- `autoresearch-launch.json`
+- `autoresearch-runtime.json`
+- `autoresearch-runtime.log`
 - `autoresearch-lessons.md`
 - `.tmp`, `.bak`, and `.prev` variants of those files
 
@@ -352,6 +366,7 @@ These helpers keep two key semantics consistent:
 
 1. `state.current_metric` is the retained metric after the keep/discard decision.
 2. `state.last_trial_metric` is the metric from the latest attempted main iteration.
+3. Parallel batch merges reuse the same lightweight health/worktree preflight before updating the authoritative run state.
 
 In exec mode, this JSON state is scratch-only. It must not remain in the repo after completion.
 
@@ -384,7 +399,7 @@ After every PIVOT, extract a lesson per `references/lessons-protocol.md`.
 
 ### Lessons Extraction
 
-After every `keep` decision, extract a positive lesson. After every PIVOT, extract a strategic lesson. At run completion, extract a summary lesson. See `references/lessons-protocol.md` for structure and persistence.
+After every `keep` decision, `autoresearch_record_iteration.py` appends a positive lesson immediately after the authoritative TSV/JSON update. After every PIVOT, the same helper appends a strategic lesson the same way. At managed-runtime completion, `autoresearch_runtime_ctl.py` appends a summary lesson when no lesson was written in the last 5 iterations of the same run. See `references/lessons-protocol.md` for structure and persistence.
 
 ## Phase 8.5: Health Check
 
@@ -392,10 +407,12 @@ Health Check runs strictly between Log (Phase 8) and Phase 8.7 (Re-Anchoring). T
 
 Run health checks per `references/health-check-protocol.md`:
 
-- **Every iteration:** disk space, git state, verify command existence, wall-clock tracking.
-- **Every 10 iterations:** scope integrity, environment drift, verify/guard consistency, log integrity deep check, context health (Protocol Fingerprint Check).
+- **Every managed-runtime cycle boundary:** before each detached `codex exec` session (and therefore before every relaunch), `autoresearch_runtime_ctl.py` runs `autoresearch_health_check.py` for disk space, git state, verify command existence, and resume-helper-based TSV/JSON integrity.
+- **Commit safety at the same boundary:** when the repo is git-backed, `autoresearch_runtime_ctl.py` also runs `autoresearch_commit_gate.py` with the launch-manifest scope before each detached session. Relaunch is blocked if staged autoresearch artifacts or out-of-scope worktree changes are present.
+- **Extended review:** scope integrity, environment drift, verify/guard consistency, and context health when the workflow explicitly schedules the protocol-level extended checks.
 - Log integrity should use the helper-script reconstruction of main rows and retained state, not raw TSV row counts.
-- Auto-recover safe issues. Hard blocker on unrecoverable issues.
+- `autoresearch_health_check.py` only returns structured `ok / warn / block` findings. Any retries, repairs, or blocker logging must be implemented by the caller.
+- Within a live Codex session, the model must still honor the same scope-aware commit rule before creating a trial commit; the runtime controller can only enforce these checks between detached sessions.
 
 ## Phase 8.7: Protocol Re-Anchoring
 

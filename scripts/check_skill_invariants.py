@@ -15,6 +15,8 @@ from autoresearch_helpers import (
     improvement,
     log_summary,
     parse_results_log,
+    read_launch_manifest,
+    read_runtime_payload,
 )
 
 
@@ -25,7 +27,7 @@ BUNDLED_HELPER_RE = re.compile(
     r"|/etc/codex/skills/[^\s\"']+"
     r"|(?:~|/)[^\s\"']*/codex-autoresearch"
     r")/scripts/"
-    r"autoresearch_(init_run|record_iteration|resume_check|select_parallel_batch|exec_state)\.py\b"
+    r"autoresearch_(init_run|record_iteration|resume_check|select_parallel_batch|exec_state|launch_gate|resume_prompt|runtime_ctl|commit_gate|decision|health_check|lessons)\.py\b"
 )
 
 
@@ -56,6 +58,13 @@ def parse_args() -> argparse.Namespace:
     interactive_parser.add_argument("--repo", required=True)
     interactive_parser.add_argument("--verify-cmd", required=True)
     interactive_parser.add_argument("--expect-improvement", action="store_true")
+
+    runtime_parser = subparsers.add_parser(
+        "runtime", help="Check detached runtime launch/status/stop artifacts."
+    )
+    runtime_parser.add_argument("--repo", required=True)
+    runtime_parser.add_argument("--expect-status", default="stopped")
+    runtime_parser.add_argument("--expect-terminal-reason", default="user_stopped")
 
     return parser.parse_args()
 
@@ -339,6 +348,40 @@ def validate_interactive(repo: Path, args: argparse.Namespace) -> None:
     print("interactive invariants: OK")
 
 
+def validate_runtime(repo: Path, args: argparse.Namespace) -> None:
+    launch_path = repo / "autoresearch-launch.json"
+    runtime_path = repo / "autoresearch-runtime.json"
+
+    if not launch_path.exists():
+        raise AutoresearchError("runtime smoke did not produce autoresearch-launch.json")
+    if not runtime_path.exists():
+        raise AutoresearchError("runtime smoke did not produce autoresearch-runtime.json")
+
+    launch = read_launch_manifest(launch_path)
+    runtime = read_runtime_payload(runtime_path)
+    log_path = Path(runtime.get("log_path", ""))
+    if not log_path.is_absolute():
+        log_path = (repo / log_path).resolve()
+
+    if runtime.get("status") != args.expect_status:
+        raise AutoresearchError(
+            f"runtime status mismatch: expected {args.expect_status!r}, got {runtime.get('status')!r}"
+        )
+    if runtime.get("terminal_reason") != args.expect_terminal_reason:
+        raise AutoresearchError(
+            "runtime terminal_reason mismatch: "
+            f"expected {args.expect_terminal_reason!r}, got {runtime.get('terminal_reason')!r}"
+        )
+    if not isinstance(launch.get("original_goal"), str) or not launch["original_goal"].strip():
+        raise AutoresearchError("launch manifest is missing original_goal")
+    if not isinstance(runtime.get("repo"), str) or Path(runtime["repo"]).resolve() != repo:
+        raise AutoresearchError("runtime state points at the wrong repo")
+    if not log_path.exists():
+        raise AutoresearchError("runtime smoke did not produce a runtime log file")
+
+    print("runtime invariants: OK")
+
+
 def main() -> int:
     args = parse_args()
     repo = Path(args.repo).resolve()
@@ -347,8 +390,10 @@ def main() -> int:
 
     if args.mode == "exec":
         validate_exec(repo, args)
-    else:
+    elif args.mode == "interactive":
         validate_interactive(repo, args)
+    else:
+        validate_runtime(repo, args)
     return 0
 
 

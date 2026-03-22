@@ -14,14 +14,14 @@ Autonomous goal-directed iteration. Modify -> Verify -> Keep/Discard -> Repeat.
 1. Classify the request as `loop`, `plan`, `debug`, `fix`, `security`, `ship`, or `exec`.
 2. Load `references/core-principles.md` and `references/structured-output-spec.md`.
 3. Load `references/results-logging.md` when a results log is needed.
-4. Check for prior run and load `references/session-resume-protocol.md` if resuming.
+4. Check the launch/runtime state and load `references/session-resume-protocol.md` when resuming or controlling an existing run.
 5. Load `references/environment-awareness.md` to probe hardware and toolchains.
 6. Load `references/interaction-wizard.md` only if required fields are missing (not for `exec` mode).
 7. Load the mode-specific workflow reference.
 8. Load cross-cutting protocols for iterating modes: `references/lessons-protocol.md`, `references/pivot-protocol.md`, `references/health-check-protocol.md`.
 9. Optionally load `references/hypothesis-perspectives.md`, `references/parallel-experiments-protocol.md`, `references/web-search-protocol.md` based on configuration.
 10. Parse inline config from the user prompt or skill mention.
-11. Use the bundled helper scripts for stateful artifacts when they apply. Resolve them relative to the loaded skill bundle root (`<skill-root>/scripts/...`), not the target repo root. In the common repo-local install this means commands such as `python3 .agents/skills/codex-autoresearch/scripts/autoresearch_init_run.py ...`.
+11. Use the bundled helper scripts for stateful artifacts and runtime control when they apply. Resolve them relative to the loaded skill bundle root (`<skill-root>/scripts/...`), not the target repo root. In the common repo-local install this means commands such as `python3 .agents/skills/codex-autoresearch/scripts/autoresearch_init_run.py ...`.
 12. Execute the selected workflow exactly as written.
 13. Produce the required structured output and artifacts.
 
@@ -86,27 +86,35 @@ Optional but recommended:
 
 If required fields are missing, use the wizard contract in `references/interaction-wizard.md`.
 
+## Single Entry Runtime
+
+- `$codex-autoresearch` is the only primary human-facing entrypoint.
+- For a new interactive run, scan the repo, ask the confirmation questions, then when the user says `go` call `autoresearch_runtime_ctl.py launch` to persist the confirmed launch manifest and start the detached runtime controller in one step. The runtime itself should execute non-interactive `codex exec` sessions with the generated runtime prompt supplied on stdin. If the mini-wizard outcome is "fresh start", call `autoresearch_runtime_ctl.py launch --fresh-start` so prior persistent run-control artifacts are archived as part of the same handoff.
+- For `status`, `stop`, or `resume` requests, stay on the same skill entry and use the runtime control scripts instead of asking the user to switch commands.
+- `exec` remains the advanced / CI path. It is fully specified upfront and does not use the interactive handoff.
+
 ## Hard Rules
 
-1. **Ask before act in interactive modes.** For `loop`, `debug`, `fix`, `security`, and `ship`, ALWAYS scan the repo and ask at least one round of clarifying questions before starting the loop. `exec` mode is the exception: it is fully configured upfront and must not stop for a launch question.
-2. **Never ask after launch.** In interactive modes, once the user says "go" (or equivalent: "start", "launch", or any clear approval), the loop is fully autonomous. `exec` mode has no launch question; once safety checks pass, it begins immediately. NEVER pause mid-run to ask the user anything -- not for clarification, not for confirmation, not for permission. If you encounter ambiguity during the loop, apply best practices and keep going. The user may be asleep.
-3. Read all in-scope files before the first write.
-4. One focused change per iteration.
-5. Mechanical verification only.
-6. Commit before verification only when `git status --porcelain` shows no changes outside the experiment scope or autoresearch-owned artifacts.
-7. Never stage or revert unrelated user changes.
-8. Keep run artifacts uncommitted and never stage them.
-9. Use the rollback strategy approved during setup. In a dedicated experiment branch/worktree with pre-launch approval, `git reset --hard HEAD~1` is allowed; otherwise use `git revert --no-edit HEAD`.
-10. Discard gains under 1% that add disproportionate complexity.
-11. Unlimited runs by default unless the user explicitly asks for `Iterations: N`.
-12. External ship actions (deploy, publish, release) must be confirmed during the pre-launch wizard phase. If not confirmed before launch, skip them and log as blocker.
-13. NEVER STOP. NEVER ASK "should I continue?". Keep iterating until interrupted or a hard blocker appears (see `references/autonomous-loop-protocol.md` Stop Conditions for the full definition). Examples: verify command no longer runnable, scope files deleted externally, git repo corrupted, disk full, or the same crash 5+ times in a row.
-14. When stuck (3+ consecutive discards), use the PIVOT/REFINE escalation ladder from `references/pivot-protocol.md` instead of brute-force retrying.
-15. Extract lessons after every kept iteration and every pivot (see `references/lessons-protocol.md`).
-16. Prefer the bundled helper scripts over hand-editing `research-results.tsv` or `autoresearch-state.json`. Always call them via the skill-bundle path (`<skill-root>/scripts/...`); never call bare `scripts/autoresearch_*.py` from the target repo root unless the skill bundle itself is actually installed there.
-17. In `exec` mode, never leave repo-root `autoresearch-state.json` behind. If helper scripts need state, use the exec scratch path and clean it up before exit.
-18. After any context compaction event (the CLI warns about thread length and compaction), re-read `references/autonomous-loop-protocol.md` and `references/core-principles.md` from disk before the next iteration. Do not rely on memory of these documents after compaction.
-19. Every 10 iterations, perform the Protocol Fingerprint Check defined in Phase 8.7 of `references/autonomous-loop-protocol.md`. If any item fails, re-read all loaded protocol files from disk before continuing.
+1. **Ask before act for new interactive launches.** For `loop`, `debug`, `fix`, `security`, and `ship`, ALWAYS scan the repo and ask at least one round of clarifying questions before creating a new launch manifest. `exec` mode is the exception: it is fully configured upfront and must not stop for a launch question.
+2. **Handoff to the runtime after launch approval.** In interactive modes, once the user says "go" (or equivalent: "start", "launch", or any clear approval), call `autoresearch_runtime_ctl.py launch` so the confirmed launch manifest and detached runtime are created as a single script-level action. The runtime should continue through non-interactive `codex exec` sessions, not through the interactive TUI. If the chosen path is a fresh start after recovery analysis, use `autoresearch_runtime_ctl.py launch --fresh-start` so stale persistent run-control artifacts are archived automatically. Do not keep the long-running loop in the same foreground turn. `exec` mode has no launch question; once safety checks pass, it begins immediately.
+3. **Never ask after launch.** Once the launch manifest exists and the runtime is active, do not pause mid-run to ask the user anything -- not for clarification, not for confirmation, not for permission. If you encounter ambiguity during the loop, apply best practices and keep going. The user may be asleep.
+4. Read all in-scope files before the first write.
+5. One focused change per iteration.
+6. Mechanical verification only.
+7. Commit before verification only when `git status --porcelain` shows no changes outside the experiment scope or autoresearch-owned artifacts. The detached runtime enforces the same scope-aware gate before each relaunch boundary, but inside a live Codex session you must still honor it before creating a trial commit.
+8. Never stage or revert unrelated user changes.
+9. Keep run artifacts uncommitted and never stage them.
+10. Use the rollback strategy approved during setup. In a dedicated experiment branch/worktree with pre-launch approval, `git reset --hard HEAD~1` is allowed; otherwise use `git revert --no-edit HEAD`.
+11. Discard gains under 1% that add disproportionate complexity.
+12. Unlimited runs by default unless the user explicitly asks for `Iterations: N`.
+13. External ship actions (deploy, publish, release) must be confirmed during the pre-launch wizard phase. If not confirmed before launch, skip them and log as blocker.
+14. Do not ask "should I continue?". Once launched, keep the managed runtime active until interrupted or a hard blocker / configured terminal condition appears (see `references/autonomous-loop-protocol.md` Stop Conditions for the full definition).
+15. When stuck (3+ consecutive discards), use the PIVOT/REFINE escalation ladder from `references/pivot-protocol.md` instead of brute-force retrying.
+16. Extract lessons after every kept iteration and every pivot (see `references/lessons-protocol.md`).
+17. Prefer the bundled helper scripts over hand-editing `research-results.tsv`, `autoresearch-state.json`, or runtime-control files. Always call them via the skill-bundle path (`<skill-root>/scripts/...`); never call bare `scripts/autoresearch_*.py` from the target repo root unless the skill bundle itself is actually installed there.
+18. In `exec` mode, never leave repo-root `autoresearch-state.json` behind. If helper scripts need state, use the exec scratch path and explicitly clean it up before exit.
+19. After any context compaction event (the CLI warns about thread length and compaction), re-read `references/autonomous-loop-protocol.md` and `references/core-principles.md` from disk before the next iteration. Do not rely on memory of these documents after compaction.
+20. Every 10 iterations, perform the Protocol Fingerprint Check defined in Phase 8.7 of `references/autonomous-loop-protocol.md`. If any item fails, re-read all loaded protocol files from disk before continuing.
 
 ## Structured Output
 

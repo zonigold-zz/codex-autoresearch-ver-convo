@@ -81,7 +81,7 @@ The project has two layers: the **skill layer** (what Codex reads) and the **doc
 
 | If you want to change... | Edit this file |
 |--------------------------|---------------|
-| The project overview and quick start | `README.md` + `docs/i18n/README_ZH.md` |
+| The project overview and quick start | `README.md` + `docs/i18n/README_*.md` |
 | Detailed usage instructions | `docs/GUIDE.md` |
 | Copy-paste recipes and worked examples | `docs/EXAMPLES.md` |
 | Installation methods | `docs/INSTALL.md` |
@@ -98,7 +98,7 @@ When a skill-layer change affects user-visible behavior, update the documentatio
 
 4. Add field mappings to `references/interaction-wizard.md` so the wizard knows how to guide users into this mode.
 
-5. Add a section to `README.md`, `docs/i18n/README_ZH.md`, `docs/GUIDE.md`, and at least one recipe to `docs/EXAMPLES.md`.
+5. Add a section to `README.md`, update the maintained `docs/i18n/README_*.md` files, update `docs/GUIDE.md`, and add at least one recipe to `docs/EXAMPLES.md`.
 
 6. Run `bash scripts/validate_skill_structure.sh` to verify the file structure.
 
@@ -135,9 +135,10 @@ Keep PRs focused. One logical change per PR.
 
 The automated tests are real and useful, but they do **not** all validate the same layer:
 
-- `tests/test_autoresearch_scripts.py` executes the helper scripts directly and checks TSV/JSON semantics.
+- `tests/autoresearch/` executes the helper scripts directly and checks TSV/JSON semantics.
 - `tests/test_check_skill_invariants.py` validates the invariant checker itself.
 - `bash scripts/run_skill_e2e.sh exec-smoke --clean` runs the real skill through `codex exec` in a disposable fixture repo.
+- `bash scripts/run_skill_e2e.sh runtime-smoke --clean` automatically exercises the detached runtime launch/status/stop handoff with an installed skill copy and a fake Codex binary.
 
 That means `python3 -m unittest ...` alone is not enough to prove the skill still works end to end.
 
@@ -149,7 +150,7 @@ Use this gate table:
 | Any `scripts/`, `SKILL.md`, `references/`, invariant, or artifact/state semantics change | `bash scripts/run_contributor_gate.sh skill` |
 | Wizard / ask-before-act / `"go"` boundary / interactive loop behavior | `bash scripts/run_contributor_gate.sh skill` **plus** `bash scripts/run_skill_e2e.sh interactive-smoke` |
 
-The `interactive-smoke` harness prints the exact manual verification steps. Keep it manual; it is meant to verify conversational behavior that the automated gate cannot prove.
+The `interactive-smoke` harness prints the exact manual verification steps. Keep it manual for conversational behavior that the automated gate cannot prove. The detached runtime handoff itself is now covered automatically by `runtime-smoke`.
 
 ## Validating your changes
 
@@ -164,10 +165,11 @@ For real skill-level validation against Codex CLI itself:
 
 ```bash
 bash scripts/run_skill_e2e.sh exec-smoke
+bash scripts/run_skill_e2e.sh runtime-smoke
 bash scripts/run_skill_e2e.sh interactive-smoke
 ```
 
-`exec-smoke` runs the real skill through `codex exec` in a disposable fixture repo and checks artifact invariants. `interactive-smoke` prepares a disposable repo and prints the exact manual wizard/`go` smoke-test steps.
+`exec-smoke` runs the real skill through `codex exec` in a disposable fixture repo and checks artifact invariants. `runtime-smoke` automatically exercises the installed-skill detached runtime handoff. `interactive-smoke` prepares a disposable repo and prints the exact manual wizard/`go` smoke-test steps for the still-human conversational layer.
 
 For interactive behavioral validation, there is no fully automated suite. The skill is Markdown instructions plus helper scripts -- the only way to test wizard and autonomy boundaries is to use it. Symlink your branch, invoke the skill with various prompts, and verify Codex follows the updated instructions.
 

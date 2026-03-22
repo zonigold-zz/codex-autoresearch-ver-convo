@@ -5,12 +5,10 @@ import argparse
 import json
 from pathlib import Path
 
+from autoresearch_decision import apply_status_transition, requires_trial_commit
 from autoresearch_helpers import (
     AutoresearchError,
     append_rows,
-    build_state_payload,
-    clone_state_payload,
-    decimal_to_json_number,
     improvement,
     make_row,
     parse_decimal,
@@ -19,11 +17,10 @@ from autoresearch_helpers import (
     resolve_state_path_for_log,
     write_json_atomic,
 )
+from autoresearch_lessons import append_iteration_lesson, lessons_path_from_results
 
 
 STATUSES = ["keep", "discard", "crash", "no-op", "blocked", "drift", "refine", "pivot", "search", "split"]
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Append one main iteration row and atomically update autoresearch-state.json."
@@ -49,8 +46,9 @@ def main() -> int:
     args = parser.parse_args()
 
     results_path = Path(args.results_path)
+    repo_hint = results_path.parent if results_path.is_absolute() else None
     parsed = parse_results_log(results_path)
-    state_path = resolve_state_path_for_log(args.state_path, parsed)
+    state_path = resolve_state_path_for_log(args.state_path, parsed, cwd=repo_hint)
     parsed, payload, reconstructed, direction = require_consistent_state(
         results_path,
         state_path,
@@ -66,8 +64,10 @@ def main() -> int:
             raise AutoresearchError(f"--metric is required for status {args.status}")
         metric = parse_decimal(args.metric, "metric")
 
-    if args.status == "keep" and args.commit == "-":
-        raise AutoresearchError("Keep iterations must provide --commit.")
+    if requires_trial_commit(args.status, args.metric is not None, args.guard) and args.commit == "-":
+        raise AutoresearchError(
+            f"Status {args.status} must provide --commit to preserve trial provenance."
+        )
     if args.status == "keep" and not improvement(metric, current_metric, direction):
         raise AutoresearchError("Keep iterations must improve over the retained metric.")
 
@@ -82,82 +82,31 @@ def main() -> int:
     )
     append_rows(results_path, [new_row])
 
-    new_payload = clone_state_payload(payload)
-    state = new_payload["state"]
-    state["iteration"] = next_iteration
-    state["last_status"] = args.status
-    state["last_trial_commit"] = args.commit
-    state["last_trial_metric"] = decimal_to_json_number(metric)
-
-    if args.status == "keep":
-        state["keeps"] = state.get("keeps", 0) + 1
-        state["current_metric"] = decimal_to_json_number(metric)
-        state["last_commit"] = args.commit
-        state["consecutive_discards"] = 0
-        state["pivot_count"] = 0
-        previous_best = parse_decimal(state["best_metric"], "best_metric")
-        if improvement(metric, previous_best, direction):
-            state["best_metric"] = decimal_to_json_number(metric)
-            state["best_iteration"] = next_iteration
-    elif args.status == "discard":
-        state["discards"] = state.get("discards", 0) + 1
-        state["consecutive_discards"] = state.get("consecutive_discards", 0) + 1
-    elif args.status == "crash":
-        state["crashes"] = state.get("crashes", 0) + 1
-        state["consecutive_discards"] = state.get("consecutive_discards", 0) + 1
-    elif args.status == "no-op":
-        state["no_ops"] = state.get("no_ops", 0) + 1
-        state["consecutive_discards"] = state.get("consecutive_discards", 0) + 1
-    elif args.status == "blocked":
-        state["blocked"] = state.get("blocked", 0) + 1
-    elif args.status == "drift":
-        state["current_metric"] = decimal_to_json_number(metric)
-        if args.commit != "-":
-            state["last_commit"] = args.commit
-        state["consecutive_discards"] = 0
-        previous_best = parse_decimal(state["best_metric"], "best_metric")
-        if improvement(metric, previous_best, direction):
-            state["best_metric"] = decimal_to_json_number(metric)
-            state["best_iteration"] = next_iteration
-    elif args.status == "pivot":
-        state["pivot_count"] = state.get("pivot_count", 0) + 1
-    elif args.status == "split":
-        state["splits"] = state.get("splits", 0) + 1
-
-    rewritten_summary = {
-        "iteration": state["iteration"],
-        "baseline_metric": parse_decimal(state["baseline_metric"], "baseline_metric"),
-        "best_metric": parse_decimal(state["best_metric"], "best_metric"),
-        "best_iteration": state["best_iteration"],
-        "current_metric": parse_decimal(state["current_metric"], "current_metric"),
-        "last_commit": state["last_commit"],
-        "last_trial_commit": state["last_trial_commit"],
-        "last_trial_metric": parse_decimal(state["last_trial_metric"], "last_trial_metric"),
-        "keeps": state["keeps"],
-        "discards": state["discards"],
-        "crashes": state["crashes"],
-        "no_ops": state.get("no_ops", 0),
-        "blocked": state.get("blocked", 0),
-        "splits": state.get("splits", 0),
-        "consecutive_discards": state["consecutive_discards"],
-        "pivot_count": state["pivot_count"],
-        "last_status": state["last_status"],
-    }
-    final_payload = build_state_payload(
-        mode=new_payload["mode"],
-        run_tag=new_payload.get("run_tag") or None,
-        config=new_payload["config"],
-        summary=rewritten_summary,
+    final_payload = apply_status_transition(
+        payload,
+        status=args.status,
+        metric=metric,
+        commit=args.commit,
+        direction=direction,
+        next_iteration=next_iteration,
     )
     write_json_atomic(state_path, final_payload)
+
+    append_iteration_lesson(
+        lessons_path=lessons_path_from_results(results_path),
+        state_payload=final_payload,
+        status=args.status,
+        description=args.description,
+        iteration=next_iteration,
+    )
 
     print(
         json.dumps(
             {
                 "iteration": next_iteration,
                 "status": args.status,
-                "retained_metric": state["current_metric"],
-                "trial_metric": state["last_trial_metric"],
+                "retained_metric": final_payload["state"]["current_metric"],
+                "trial_metric": final_payload["state"]["last_trial_metric"],
                 "results_path": str(results_path),
                 "state_path": str(state_path),
             },
