@@ -104,6 +104,47 @@ class AutoresearchResultsRowsTest(AutoresearchScriptsTestBase):
             self.assertFalse((tmpdir / "autoresearch-runtime.json").exists())
             self.assertFalse((tmpdir / "autoresearch-runtime.log").exists())
 
+    def test_resume_check_accepts_repo_as_primary_entrypoint(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmpdir = Path(tmp)
+            results_path = tmpdir / "research-results.tsv"
+            state_path = tmpdir / "autoresearch-state.json"
+
+            self.run_script(
+                "autoresearch_init_run.py",
+                "--results-path",
+                str(results_path),
+                "--state-path",
+                str(state_path),
+                "--mode",
+                "loop",
+                "--goal",
+                "Reduce failures",
+                "--scope",
+                "src/**/*.py",
+                "--metric-name",
+                "failure count",
+                "--direction",
+                "lower",
+                "--verify",
+                "python3 -c pass",
+                "--baseline-metric",
+                "10",
+                "--baseline-commit",
+                "a1b2c3d",
+                "--baseline-description",
+                "baseline failures",
+            )
+
+            resume = self.run_script(
+                "autoresearch_resume_check.py",
+                "--repo",
+                str(tmpdir),
+            )
+            self.assertEqual(resume["decision"], "full_resume")
+            self.assertEqual(Path(resume["results_path"]).resolve(), results_path.resolve())
+            self.assertEqual(Path(resume["state_path"]).resolve(), state_path.resolve())
+
     def test_multi_repo_provenance_is_persisted_in_state_for_init_and_iterations(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

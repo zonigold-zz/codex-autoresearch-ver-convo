@@ -11,6 +11,8 @@ from autoresearch_helpers import (
     default_runtime_state_path,
     parse_results_log,
     results_repo_root,
+    resolve_repo_path,
+    resolve_repo_relative,
     resolve_state_path_for_log,
     sync_state_session_mode,
 )
@@ -19,15 +21,27 @@ from autoresearch_runtime_common import (
     DEFAULT_EXECUTION_POLICY,
     EXECUTION_POLICY_CHOICES,
     load_runtime_with_error,
-    resolve_repo_relative,
 )
+
+
+DEFAULT_RESULTS_PATH = "research-results.tsv"
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Synchronize autoresearch-state.json with the active interactive session mode."
     )
-    parser.add_argument("--results-path", default="research-results.tsv")
+    parser.add_argument(
+        "--repo",
+        help="Primary repo root. Preferred entrypoint when syncing interactive session mode.",
+    )
+    parser.add_argument(
+        "--results-path",
+        help=(
+            "Results log path. Overrides the repo-derived default when provided. "
+            f"Defaults to {DEFAULT_RESULTS_PATH} in --repo or the current directory."
+        ),
+    )
     parser.add_argument("--state-path")
     parser.add_argument(
         "--runtime-path",
@@ -50,8 +64,12 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
 
-    results_path = Path(args.results_path)
-    repo = results_repo_root(results_path)
+    if args.repo is not None:
+        repo = resolve_repo_path(args.repo)
+        results_path = resolve_repo_relative(repo, args.results_path, repo / DEFAULT_RESULTS_PATH)
+    else:
+        results_path = Path(args.results_path or DEFAULT_RESULTS_PATH)
+        repo = results_repo_root(results_path)
     repo_hint = results_path.parent if results_path.is_absolute() else repo
     parsed = parse_results_log(results_path) if results_path.exists() else None
     state_path = resolve_state_path_for_log(args.state_path, parsed, cwd=repo_hint)

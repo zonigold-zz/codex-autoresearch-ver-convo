@@ -299,10 +299,8 @@ class AutoresearchRuntimeControllerTest(AutoresearchScriptsTestBase):
 
             switched = self.run_script(
                 "autoresearch_set_session_mode.py",
-                "--results-path",
-                str(primary / "research-results.tsv"),
-                "--state-path",
-                str(primary / "autoresearch-state.json"),
+                "--repo",
+                str(primary),
                 "--session-mode",
                 "foreground",
             )
@@ -855,12 +853,8 @@ class AutoresearchRuntimeControllerTest(AutoresearchScriptsTestBase):
 
             gate = self.run_script(
                 "autoresearch_launch_gate.py",
-                "--results-path",
-                str(tmpdir / "research-results.tsv"),
-                "--launch-path",
-                str(tmpdir / "autoresearch-launch.json"),
-                "--runtime-path",
-                str(tmpdir / "autoresearch-runtime.json"),
+                "--repo",
+                str(tmpdir),
             )
             self.assertEqual(gate["decision"], "blocked_start")
             self.assertEqual(gate["reason"], "already_running")

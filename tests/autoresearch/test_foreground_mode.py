@@ -144,10 +144,8 @@ class AutoresearchForegroundModeTest(AutoresearchScriptsTestBase):
 
             result = self.run_script(
                 "autoresearch_set_session_mode.py",
-                "--results-path",
-                str(results_path),
-                "--state-path",
-                str(state_path),
+                "--repo",
+                str(repo),
                 "--session-mode",
                 "foreground",
             )
