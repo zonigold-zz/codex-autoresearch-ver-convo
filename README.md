@@ -213,6 +213,8 @@ Before starting, Codex always shows you what it found and asks you to confirm.
 One round of confirmation minimum, up to five if needed. Then you choose foreground or background and say "go". Foreground keeps iterating in the current session; background hands off to detached runtime so you can walk away.
 For truly unattended runs, start Codex CLI with approvals / sandbox settings that will not interrupt git commit or revert commands. In a disposable or otherwise trusted repo, giving Codex fuller permissions is the simplest option.
 
+If your goal has a structural requirement in addition to a metric threshold, Codex can also gate stopping on structured labels. For example: "stop only when latency <= 120 ms and the retained keep is labeled `production-path` and `real-backend`." This avoids falsely stopping on a numerically better result that came from the wrong mechanism, subsystem, or implementation path.
+
 ### Dual-gate verification
 
 Two commands serve different purposes:

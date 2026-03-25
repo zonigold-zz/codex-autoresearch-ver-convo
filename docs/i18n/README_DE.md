@@ -72,13 +72,14 @@ Codex: 47 `any`-Vorkommen in src/**/*.ts gefunden.
        - Verifikation: grep-Zaehlung + tsc --noEmit als Schutz
 
        Zu bestaetigen:
+       - Laufmodus: foreground oder background?
        - Bis auf null laufen lassen, oder auf N Iterationen begrenzen?
 
-       Antworten Sie "go" zum Starten, oder sagen Sie mir, was geaendert werden soll.
+       Waehlen Sie zuerst einen Laufmodus und antworten Sie dann mit "go", oder sagen Sie mir, was geaendert werden soll.
 
-Du:    Go, lass es die ganze Nacht laufen.
+Du:    Background, go. Lass es die ganze Nacht laufen.
 
-Codex: Start -- Ausgangswert: 47. Iteration bis zur Unterbrechung.
+Codex: Starte den background-Lauf -- Ausgangswert: 47. Der losgeloeste Runtime-Controller iteriert jetzt weiter.
 ```
 
 Jede Verbesserung akkumuliert sich. Jeder Fehlschlag wird zurueckgesetzt. Alles wird protokolliert.
@@ -212,6 +213,7 @@ Codex leitet alles aus Ihrem Satz und Ihrem Repository ab. Sie schreiben keine K
 Vor dem Start zeigt Codex Ihnen immer, was es gefunden hat, und bittet um Bestaetigung.
 Mindestens eine Runde Bestaetigung, bis zu fuenf bei Bedarf. Danach waehlen Sie `foreground` oder `background` und sagen "go". In `foreground` laeuft die Iteration in der aktuellen Sitzung weiter; in `background` wird sie an den losgeloesten Runtime-Controller uebergeben, sodass Sie sich zuruecklehnen koennen.
 Fuer wirklich unbeaufsichtigte Laeufe sollten Sie Codex CLI mit Freigabe-/Sandbox-Einstellungen starten, die `git commit` oder `git revert` nicht unterbrechen. In einem wegwerfbaren oder anderweitig vertrauenswuerdigen Repository ist es am einfachsten, Codex weitergehende Berechtigungen zu geben.
+Wenn Ihr Ziel neben einem Metrikschwellenwert auch eine strukturelle Anforderung hat, kann Codex das Stoppen auch an strukturierten Labels festmachen. Zum Beispiel: "erst stoppen, wenn die Latenz <= 120 ms ist und der beibehaltene Keep mit `production-path` und `real-backend` markiert ist." So wird vermieden, dass ein numerisch besseres Ergebnis aus dem falschen Mechanismus, Subsystem oder Implementierungspfad den Lauf zu frueh beendet.
 
 ### Doppelte Verifikation
 
@@ -354,12 +356,13 @@ Codex: Erkannt: PR nach main mit 3 Commits.
        - Ziel: main-Branch
 
        Zu bestaetigen:
+       - Laufmodus: foreground oder background?
        - Erst Probelauf, oder direkt live?
        - Ueberwachung nach Veroeffentlichung? (5 Min / 15 Min / keine)
 
-       Antworten Sie mit Ihrer Praeferenz.
+       Waehlen Sie zuerst einen Laufmodus und antworten Sie dann mit Ihrer Praeferenz.
 
-Du:    Erst Probelauf.
+Du:    Foreground, erst Probelauf.
 ```
 
 Siehe [GUIDE.md](../GUIDE.md) fuer detaillierte Nutzung und erweiterte Optionen jedes Modus.
