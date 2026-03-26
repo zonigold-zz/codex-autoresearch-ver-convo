@@ -306,6 +306,8 @@ def log_summary(parsed: ParsedLog, direction: str) -> dict[str, Any]:
         elif row.status == "no-op":
             summary["no_ops"] += 1
             summary["consecutive_discards"] += 1
+        elif row.status == "refine":
+            summary["consecutive_discards"] += 1
         elif row.status == "blocked":
             summary["blocked"] += 1
         elif row.status == "drift":
@@ -320,7 +322,7 @@ def log_summary(parsed: ParsedLog, direction: str) -> dict[str, Any]:
                 summary["best_iteration"] = main_iteration
         elif row.status == "pivot":
             summary["pivot_count"] += 1
-        elif row.status in {"refine", "search"}:
+        elif row.status == "search":
             pass
         else:
             raise AutoresearchError(

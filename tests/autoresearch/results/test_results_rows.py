@@ -641,6 +641,98 @@ class AutoresearchResultsRowsTest(AutoresearchScriptsTestBase):
             self.assertNotEqual(completed.returncode, 0)
             self.assertIn("Status refine must provide --commit", completed.stderr)
 
+    def test_refine_counts_toward_consecutive_discards_for_state_and_resume(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmpdir = Path(tmp)
+            results_path = tmpdir / "research-results.tsv"
+            state_path = tmpdir / "autoresearch-state.json"
+
+            self.run_script(
+                "autoresearch_init_run.py",
+                "--results-path",
+                str(results_path),
+                "--state-path",
+                str(state_path),
+                "--mode",
+                "loop",
+                "--goal",
+                "Reduce failures",
+                "--scope",
+                "src/**/*.py",
+                "--metric-name",
+                "failure count",
+                "--direction",
+                "lower",
+                "--verify",
+                "python3 -c pass",
+                "--baseline-metric",
+                "10",
+                "--baseline-commit",
+                "a1b2c3d",
+                "--baseline-description",
+                "baseline failures",
+            )
+            self.run_script(
+                "autoresearch_record_iteration.py",
+                "--results-path",
+                str(results_path),
+                "--state-path",
+                str(state_path),
+                "--status",
+                "discard",
+                "--metric",
+                "11",
+                "--commit",
+                "deadbee",
+                "--description",
+                "first miss",
+            )
+            self.run_script(
+                "autoresearch_record_iteration.py",
+                "--results-path",
+                str(results_path),
+                "--state-path",
+                str(state_path),
+                "--status",
+                "discard",
+                "--metric",
+                "12",
+                "--commit",
+                "beadfed",
+                "--description",
+                "second miss",
+            )
+            self.run_script(
+                "autoresearch_record_iteration.py",
+                "--results-path",
+                str(results_path),
+                "--state-path",
+                str(state_path),
+                "--status",
+                "refine",
+                "--description",
+                "shift strategy without a measured trial",
+            )
+
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(state["state"]["consecutive_discards"], 3)
+            self.assertEqual(state["state"]["last_status"], "refine")
+
+            resume = self.run_script(
+                "autoresearch_resume_check.py",
+                "--results-path",
+                str(results_path),
+                "--state-path",
+                str(state_path),
+            )
+            self.assertEqual(resume["decision"], "full_resume")
+            if str(SCRIPTS_DIR) not in sys.path:
+                sys.path.insert(0, str(SCRIPTS_DIR))
+            from autoresearch_artifacts import log_summary, parse_results_log
+
+            reconstructed = log_summary(parse_results_log(results_path), "lower")
+            self.assertEqual(reconstructed["consecutive_discards"], 3)
+
     def test_parallel_batch_selects_best_worker_and_appends_main_row(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmpdir = Path(tmp)

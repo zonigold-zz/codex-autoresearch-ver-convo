@@ -908,6 +908,75 @@ class AutoresearchPreflightLessonsTest(AutoresearchScriptsTestBase):
             self.assertEqual(entries[-1]["outcome"], "summary")
             self.assertEqual(entries[-1]["iteration"], "3")
 
+    def test_lessons_capacity_compacts_old_history_and_preserves_current_run_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            lessons_path = Path(tmp) / "autoresearch-lessons.md"
+
+            if str(SCRIPTS_DIR) not in sys.path:
+                sys.path.insert(0, str(SCRIPTS_DIR))
+            from autoresearch_lessons import append_lesson, list_entries_with_recovery
+
+            for index in range(50):
+                append_lesson(
+                    lessons_path=lessons_path,
+                    title=f"Dispatch lesson {index}",
+                    strategy="Dispatch family tuning",
+                    outcome="discard",
+                    insight=f"Historical miss {index}",
+                    context=(
+                        "goal=Improve throughput; scope=dispatch; metric=avg_mfu; "
+                        "direction=higher"
+                    ),
+                    iteration=str(index + 1),
+                    timestamp="2026-01-01T00:00:00Z",
+                )
+
+            for iteration in range(1, 4):
+                append_lesson(
+                    lessons_path=lessons_path,
+                    title=f"Current run keep {iteration}",
+                    strategy="Current run hot-path adjustment",
+                    outcome="keep",
+                    insight=f"Current run insight {iteration}",
+                    context="goal=Improve throughput; scope=hot path; metric=avg_mfu; direction=higher",
+                    iteration=f"run77#{iteration}",
+                    timestamp="2026-03-26T00:00:00Z",
+                )
+
+            entries = list_entries_with_recovery(lessons_path)
+            self.assertTrue(any(entry["outcome"] == "summary" for entry in entries))
+            self.assertEqual(
+                [entry["iteration"] for entry in entries if entry["iteration"].startswith("run77#")],
+                ["run77#1", "run77#2", "run77#3"],
+            )
+            self.assertLessEqual(len(entries), 10)
+
+    def test_lessons_capacity_preserves_untagged_current_run_suffix(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            lessons_path = Path(tmp) / "autoresearch-lessons.md"
+
+            if str(SCRIPTS_DIR) not in sys.path:
+                sys.path.insert(0, str(SCRIPTS_DIR))
+            from autoresearch_lessons import append_lesson, list_entries_with_recovery
+
+            for iteration in range(1, 52):
+                append_lesson(
+                    lessons_path=lessons_path,
+                    title=f"Current run lesson {iteration}",
+                    strategy="Current untagged strategy",
+                    outcome="keep",
+                    insight=f"Current untagged insight {iteration}",
+                    context="goal=Reduce failures; scope=src/**/*.py; metric=failure count; direction=lower",
+                    iteration=str(iteration),
+                    timestamp="2026-03-26T00:00:00Z",
+                )
+
+            entries = list_entries_with_recovery(lessons_path)
+            self.assertEqual(len(entries), 51)
+            self.assertEqual(entries[0]["iteration"], "1")
+            self.assertEqual(entries[-1]["iteration"], "51")
+            self.assertFalse(any(entry["outcome"] == "summary" for entry in entries))
+
     def test_record_iteration_extracts_protocol_lesson_for_keep(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmpdir = Path(tmp)

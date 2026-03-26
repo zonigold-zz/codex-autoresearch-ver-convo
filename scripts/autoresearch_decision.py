@@ -113,6 +113,8 @@ def apply_status_transition(
     elif status == "no-op":
         state["no_ops"] = state.get("no_ops", 0) + 1
         state["consecutive_discards"] = state.get("consecutive_discards", 0) + 1
+    elif status == "refine":
+        state["consecutive_discards"] = state.get("consecutive_discards", 0) + 1
     elif status == "blocked":
         state["blocked"] = state.get("blocked", 0) + 1
     elif status == "drift":

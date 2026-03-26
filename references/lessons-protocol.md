@@ -32,10 +32,10 @@ Each lesson is a structured entry:
 ```markdown
 ### L-{N}: {title}
 - **Strategy:** what was attempted
-- **Outcome:** keep / discard / crash / pivot
+- **Outcome:** keep / discard / crash / pivot / summary
 - **Insight:** what to do differently next time
 - **Context:** goal, scope, metric at the time
-- **Iteration:** {run-tag}#{iteration-number}
+- **Iteration:** {run-tag}#{iteration-number} when a run tag exists, otherwise plain {iteration-number}
 - **Timestamp:** {ISO-8601 UTC}
 ```
 
@@ -90,19 +90,19 @@ Before committing to a hypothesis:
 
 ## Capacity Management
 
-### Cap: 50 Entries
+### Historical Archive Target: 50 Entries
 
-When the lessons file exceeds 50 entries:
+When the lessons file grows beyond the target size:
 
-1. Group entries by strategy family.
-2. For each family, compute a success ratio: `kept / (kept + discarded + crashed)`.
-3. Summarize families with 5+ entries into a single consolidated entry.
-4. Remove individual entries older than 30 days that have been summarized.
-5. Keep all entries from the current run regardless of age.
+1. Preserve every lesson from the current tagged run verbatim. If no run tag exists, preserve the trailing untagged current-run suffix verbatim.
+2. Look at older non-current entries first.
+3. Group 30+ day-old entries by normalized strategy family.
+4. For each family with 5+ eligible entries, replace those individual entries with one consolidated `summary` lesson that records the keep/discard/crash ratio.
+5. If the older archive is still above 50 entries after family compaction, roll up the oldest remaining historical entries into one generic historical summary.
 
 ### Time Decay
 
-Lessons older than 14 days receive reduced weight during hypothesis selection. Lessons older than 30 days are candidates for summarization. Lessons from the current run always have full weight.
+Lessons older than 14 days receive reduced weight during hypothesis selection. Lessons older than 30 days are the first candidates for summarization. Lessons from the current run always have full weight and are not summarized away mid-run.
 
 ## Writing Rules
 
@@ -110,7 +110,7 @@ Lessons older than 14 days receive reduced weight during hypothesis selection. L
 - Append after each qualifying event (keep, pivot, run completion).
 - The file format on disk must exactly match the lesson structure above; `autoresearch_lessons.py list` is the canonical parser for that format.
 - Never commit the lessons file.
-- Use the same run tag as the results log for cross-referencing.
+- Use the same run tag as the results log for cross-referencing when one is available.
 - If the lessons file is corrupted or unparseable, the canonical helper must rename it with a `.bak` suffix and start fresh.
 
 ## Integration Points
