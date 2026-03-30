@@ -1,7 +1,15 @@
-profile: research-safe
-allow_network: false
-allow_git_commit: prompt
-allow_git_push: forbidden
-allow_raw_data_write: forbidden
-allow_report_write: true
-allow_branch_creation: true
+permissions:
+  raw_data:
+    path: ""
+    policy: read_only
+    mutation_allowed: false
+  code:
+    allowed_paths: []
+  reports:
+    allowed_paths:
+      - reports/latest_run.md
+      - reports/methods_draft.md
+guardrails: []
+launch_policy:
+  require_user_go: true
+  default_mode: undecided

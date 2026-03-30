@@ -38,6 +38,14 @@ Prefer short multiple-choice prompts.
 - Must raw data remain immutable?
 - Which guards must never be violated?
 
+## Research memory schema
+For new writes, prefer the canonical richer schema:
+- `research/project.yaml`: `goal`, `task_family`, `objective`, `split_policy`, `verify`, `guards`, `artifacts`, `notes`
+- `research/datasets.yaml`: `datasets[].role`, `label_source`, `label_unit`, `target_type`, `raw_data_mutability`, `known_files`, `schema`, `assumptions`
+- `research/permissions.yaml`: `permissions`, `guardrails`, `launch_policy`
+
+Legacy simple keys may still be read when they already exist, but new writes should prefer the richer schema.
+
 ## Output expectations
 Before launch, summarize:
 - confirmed goal

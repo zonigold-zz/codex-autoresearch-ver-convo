@@ -1,18 +1,18 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
 import json
-import shutil
 from pathlib import Path
 
 TEMPLATE_NAMES = ("project.yaml", "datasets.yaml", "permissions.yaml")
 
-def copy_file(src: Path, dst: Path, force: bool) -> str:
+def copy_text_no_bom(src: Path, dst: Path, force: bool) -> str:
     dst.parent.mkdir(parents=True, exist_ok=True)
     if dst.exists() and not force:
         return "skipped"
-    shutil.copy2(src, dst)
+    text = src.read_text(encoding="utf-8-sig")
+    dst.write_text(text, encoding="utf-8", newline="\n")
     return "written"
 
 def main() -> int:
@@ -29,7 +29,7 @@ def main() -> int:
     for name in TEMPLATE_NAMES:
         src = template_root / name
         dst = repo_root / "research" / name
-        result["files"][str(dst.relative_to(repo_root))] = copy_file(src, dst, args.force)
+        result["files"][str(dst.relative_to(repo_root))] = copy_text_no_bom(src, dst, args.force)
 
     (repo_root / "reports").mkdir(parents=True, exist_ok=True)
     result["files"]["reports/"] = "ensured"
