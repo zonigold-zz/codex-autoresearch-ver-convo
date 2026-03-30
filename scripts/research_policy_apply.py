@@ -1,10 +1,9 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
 import datetime as dt
 import json
-import shutil
 from pathlib import Path
 
 FILES = {
@@ -17,8 +16,13 @@ def backup_if_needed(path: Path) -> str | None:
         return None
     timestamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     backup = path.with_name(f"{path.name}.bak.{timestamp}")
-    shutil.copy2(path, backup)
+    backup.write_bytes(path.read_bytes())
     return str(backup)
+
+def copy_text_no_bom(src: Path, dst: Path) -> None:
+    text = src.read_text(encoding="utf-8-sig")
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text(text, encoding="utf-8", newline="\n")
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Apply project-scoped Codex research defaults.")
@@ -34,9 +38,8 @@ def main() -> int:
     for src_name, rel_dst in FILES.items():
         src = template_root / src_name
         dst = repo_root / rel_dst
-        dst.parent.mkdir(parents=True, exist_ok=True)
         backup = backup_if_needed(dst)
-        shutil.copy2(src, dst)
+        copy_text_no_bom(src, dst)
         result["files"][rel_dst] = {"written": True, "backup": backup}
 
     print(json.dumps(result, indent=2))

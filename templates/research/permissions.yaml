@@ -1,4 +1,4 @@
-﻿profile: research-safe
+profile: research-safe
 allow_network: false
 allow_git_commit: prompt
 allow_git_push: forbidden

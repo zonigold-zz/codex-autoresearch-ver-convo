@@ -1,4 +1,4 @@
-﻿project_name: ""
+project_name: ""
 research_goal: ""
 paradigm: ""          # classification / regression / forecasting / representation / causal / manuscript
 domain: ""            # eeg / fmri / bci / aging / etc
