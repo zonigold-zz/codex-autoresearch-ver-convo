@@ -1,0 +1,14 @@
+﻿project_name: ""
+research_goal: ""
+paradigm: ""          # classification / regression / forecasting / representation / causal / manuscript
+domain: ""            # eeg / fmri / bci / aging / etc
+primary_metric:
+  name: ""
+  direction: higher
+verify_command: ""
+guard_commands: []
+default_run_mode: foreground
+max_iterations: 10
+report_outputs:
+  - reports/latest_run.md
+  - reports/methods_draft.md

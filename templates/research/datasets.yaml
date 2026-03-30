@@ -1,0 +1,9 @@
+﻿datasets:
+  - name: ""
+    path: ""
+    modality: ""
+    sample_unit: ""       # subject / session / trial / file
+    label_field: ""
+    split_policy: ""      # subject-heldout / session-heldout / kfold / external-val
+    raw_data_mutable: false
+    contains_sensitive_data: true
