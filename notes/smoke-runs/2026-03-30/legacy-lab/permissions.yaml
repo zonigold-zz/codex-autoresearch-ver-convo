@@ -1,0 +1,7 @@
+﻿profile: research-safe
+allow_network: false
+allow_git_commit: prompt
+allow_git_push: forbidden
+allow_raw_data_write: forbidden
+allow_report_write: true
+allow_branch_creation: true

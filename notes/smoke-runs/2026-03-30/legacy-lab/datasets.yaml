@@ -1,0 +1,9 @@
+﻿datasets:
+  - name: "sample-eeg"
+    path: "data/sample-eeg"
+    modality: "eeg"
+    sample_unit: "subject"
+    label_field: "label"
+    split_policy: "subject-heldout"
+    raw_data_mutable: false
+    contains_sensitive_data: false

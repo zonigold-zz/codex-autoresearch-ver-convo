@@ -1,0 +1,29 @@
+goal: EEG binary classification research scaffold
+task_family: classification
+primary_repo: F:\lab\convo-skill-fresh-lab
+scope:
+  - train_eeg.py
+  - eval_eeg.py
+  - configs/experiment.yaml
+  - research/project.yaml
+  - research/datasets.yaml
+  - research/permissions.yaml
+objective:
+  target: maximize held-out subject classification quality
+  primary_metric: AUROC
+  direction: higher
+split_policy: subject-heldout
+verify:
+  command: python eval_eeg.py --config configs/experiment.yaml
+  status: placeholder_until_eval_is_implemented
+guards:
+  - raw_data_immutable
+  - no_subject_leakage
+  - schema_integrity
+  - smoke_eval_must_complete
+artifacts:
+  - reports/latest_run.md
+  - reports/methods_draft.md
+notes:
+  - Repository currently contains placeholder training and evaluation entrypoints.
+  - Launch requires a mechanical AUROC-producing evaluation path.

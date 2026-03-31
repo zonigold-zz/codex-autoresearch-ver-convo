@@ -1,0 +1,27 @@
+goal: "Improve subject-heldout EEG classification quality without violating dataset integrity constraints."
+task_family: "classification"
+primary_repo: "."
+scope:
+  - "train_eeg.py"
+  - "eval_eeg.py"
+  - "guard_dataset.py"
+  - "configs/experiment.yaml"
+  - "data/sample-eeg/labels.csv"
+objective:
+  target: "Raise subject-heldout AUROC on the sample EEG evaluation path."
+  primary_metric: "AUROC"
+  direction: "higher"
+split_policy: "subject-heldout"
+verify:
+  command: "python eval_eeg.py --config configs/experiment.yaml --metric-only"
+  status: "ready"
+guards:
+  - "python guard_dataset.py"
+  - "python train_eeg.py --config configs/experiment.yaml"
+artifacts:
+  - "reports/latest_run.md"
+  - "reports/methods_draft.md"
+notes:
+  - "Current repo contains stub train/eval scripts and a sample label file only."
+  - "Evaluation script reports subject-heldout AUROC from data/sample-eeg/labels.csv."
+  - "Config defaults currently declare classification, subject-heldout split, and AUROC."
