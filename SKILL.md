@@ -17,6 +17,9 @@ Autonomous goal-directed iteration. Modify -> Verify -> Keep/Discard -> Repeat.
    - `references/session-resume-protocol.md` when resuming or controlling an existing run
    - `references/environment-awareness.md` before choosing hardware-sensitive work
    - `references/interaction-wizard.md` for every new interactive launch (`loop`, `debug`, `fix`, `security`, `ship`) before execution begins
+- `references/research-onboarding.md` when the task is research-facing or the repo already contains `research/*.yaml`
+- `references/research-profiles.md` when research onboarding is active and a task family / paradigm must be selected
+- `references/research-reporting.md` when the task is research-facing or the user wants researcher-readable outputs
    - `references/results-logging.md` only when debugging TSV/state semantics or helper behavior directly
 4. Load the selected mode workflow reference plus only the detailed cross-cutting protocols that actually apply (`lessons`, `pivot`, `health-check`, `parallel`, `web-search`, `hypothesis-perspectives`).
 5. Use the bundled helper scripts when stateful artifacts or runtime control are involved. Resolve them relative to the loaded skill bundle root (`<skill-root>/scripts/...`), not the target repo root. In the common repo-local install this means commands such as `python3 .agents/skills/codex-autoresearch/scripts/autoresearch_init_run.py ...`. For repo-managed control-plane helpers (`autoresearch_resume_check.py`, `autoresearch_launch_gate.py`, `autoresearch_resume_prompt.py`, `autoresearch_supervisor_status.py`, `autoresearch_runtime_ctl.py status/stop`), prefer `--repo <repo>` and let the helper derive default artifact paths.
@@ -65,6 +68,7 @@ Optional but recommended:
 - `Stop condition`
 
 For every new interactive run, use the wizard contract in `references/interaction-wizard.md`.
+For research-facing tasks, maintain or refresh repo-local project memory in `research/project.yaml`, `research/datasets.yaml`, and `research/permissions.yaml` before launch when appropriate, then ask only for deltas on later runs.
 
 ## Explicit Run Modes
 
@@ -156,3 +160,6 @@ Codex scans the repo, asks targeted questions to clarify your intent, asks you t
 - `references/session-resume-protocol.md`
 - `references/health-check-protocol.md`
 - `references/hypothesis-perspectives.md`
+- `references/research-onboarding.md`
+- `references/research-profiles.md`
+- `references/research-reporting.md`

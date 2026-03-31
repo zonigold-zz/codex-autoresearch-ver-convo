@@ -15,9 +15,11 @@ from autoresearch_helpers import (
     cleanup_exec_state,
     default_state_path,
     decimal_to_json_number,
+    format_guard_summary,
     find_repo_root,
     format_decimal,
     make_row,
+    normalize_guard_commands,
     normalize_labels,
     parse_decimal,
     resolve_state_path,
@@ -63,7 +65,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--metric-name", required=True)
     parser.add_argument("--direction", required=True, choices=["lower", "higher"])
     parser.add_argument("--verify", required=True)
-    parser.add_argument("--guard")
+    parser.add_argument(
+        "--guard",
+        action="append",
+        default=[],
+        help="Optional regression guard command. May be repeated.",
+    )
     parser.add_argument(
         "--execution-policy",
         choices=EXECUTION_POLICY_CHOICES,
@@ -159,6 +166,8 @@ def main() -> int:
         session_mode = "foreground"
 
     baseline_metric = parse_decimal(args.baseline_metric, "baseline metric")
+    guards = normalize_guard_commands(args.guard)
+    guard_summary = format_guard_summary(guards)
     comments = [f"# metric_direction: {args.direction}"]
     if args.environment_summary:
         comments.insert(0, f"# environment: {args.environment_summary}")
@@ -175,8 +184,10 @@ def main() -> int:
     )
     comments.append(f"# metric: {args.metric_name}")
     comments.append(f"# verify: {args.verify}")
-    if args.guard:
-        comments.append(f"# guard: {args.guard}")
+    if guards:
+        comments.append(f"# guards: {guard_summary}")
+        comments.append("# guards_json: " + json.dumps(guards, separators=(",", ":")))
+        comments.append(f"# guard: {guard_summary}")
     if args.iterations is not None:
         comments.append(f"# iterations: {args.iterations}")
     if args.stop_condition:
@@ -211,7 +222,8 @@ def main() -> int:
         "metric": args.metric_name,
         "direction": args.direction,
         "verify": args.verify,
-        "guard": args.guard,
+        "guards": guards,
+        "guard": guard_summary or None,
         "iterations": args.iterations,
         "stop_condition": args.stop_condition,
         "rollback_policy": args.rollback_policy,

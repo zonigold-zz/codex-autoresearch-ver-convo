@@ -1,0 +1,15 @@
+permissions:
+  raw_data:
+    path: ""
+    policy: read_only
+    mutation_allowed: false
+  code:
+    allowed_paths: []
+  reports:
+    allowed_paths:
+      - reports/latest_run.md
+      - reports/methods_draft.md
+guardrails: []
+launch_policy:
+  require_user_go: true
+  default_mode: undecided

@@ -1,0 +1,13 @@
+prefix_rule(
+    pattern = ["git", "commit"],
+    decision = "prompt",
+    justification = "Review experiment snapshots before committing.",
+    match = ["git commit -m test"],
+)
+
+prefix_rule(
+    pattern = ["git", "push"],
+    decision = "forbidden",
+    justification = "Push manually after reviewing research outputs.",
+    match = ["git push origin main"],
+)

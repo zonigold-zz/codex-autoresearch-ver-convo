@@ -14,6 +14,66 @@ from ..base import AutoresearchScriptsTestBase, REPO_ROOT, SCRIPTS_DIR
 class AutoresearchResultsRowsTest(AutoresearchScriptsTestBase):
     maxDiff = None
 
+    def test_init_run_persists_guard_arrays_and_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmpdir = Path(tmp)
+            results_path = tmpdir / "research-results.tsv"
+            state_path = tmpdir / "autoresearch-state.json"
+
+            self.run_script(
+                "autoresearch_init_run.py",
+                "--results-path",
+                str(results_path),
+                "--state-path",
+                str(state_path),
+                "--mode",
+                "loop",
+                "--goal",
+                "Reduce failures",
+                "--scope",
+                "src/**/*.py",
+                "--metric-name",
+                "failure count",
+                "--direction",
+                "lower",
+                "--verify",
+                "python3 -c pass",
+                "--guard",
+                "python -m py_compile src",
+                "--guard",
+                "pytest -q tests/unit",
+                "--baseline-metric",
+                "10",
+                "--baseline-commit",
+                "a1b2c3d",
+                "--baseline-description",
+                "baseline failures",
+            )
+
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                state["config"]["guards"],
+                ["python -m py_compile src", "pytest -q tests/unit"],
+            )
+            self.assertEqual(
+                state["config"]["guard"],
+                "[1] python -m py_compile src; [2] pytest -q tests/unit",
+            )
+
+            log_text = results_path.read_text(encoding="utf-8")
+            self.assertIn(
+                "# guards: [1] python -m py_compile src; [2] pytest -q tests/unit",
+                log_text,
+            )
+            self.assertIn(
+                '# guards_json: ["python -m py_compile src","pytest -q tests/unit"]',
+                log_text,
+            )
+            self.assertIn(
+                "# guard: [1] python -m py_compile src; [2] pytest -q tests/unit",
+                log_text,
+            )
+
     def test_init_and_serial_iteration_state_is_consistent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmpdir = Path(tmp)

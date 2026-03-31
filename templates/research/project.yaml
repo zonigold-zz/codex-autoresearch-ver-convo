@@ -1,0 +1,17 @@
+goal: ""
+task_family: ""  # classification / regression / forecasting / representation / causal / manuscript
+primary_repo: "."
+scope: []
+objective:
+  target: ""
+  primary_metric: ""
+  direction: higher
+split_policy: ""
+verify:
+  command: ""
+  status: ""
+guards: []
+artifacts:
+  - reports/latest_run.md
+  - reports/methods_draft.md
+notes: []

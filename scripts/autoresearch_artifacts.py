@@ -20,8 +20,10 @@ from autoresearch_core import (
     format_description_with_labels,
     format_decimal,
     format_delta,
+    format_guard_summary,
     improvement,
     normalize_labels,
+    normalize_guard_commands,
     parse_decimal,
     split_labels_from_description,
     utc_now,
@@ -397,12 +399,26 @@ def config_from_results_metadata(metadata: dict[str, str]) -> dict[str, Any]:
     if direction in {"lower", "higher"}:
         config["direction"] = direction
 
+    guards_json = metadata.get("guards_json")
+    guards: list[str] = []
+    if guards_json:
+        try:
+            parsed_guards = json.loads(guards_json)
+        except json.JSONDecodeError:
+            parsed_guards = None
+        if isinstance(parsed_guards, list):
+            guards = normalize_guard_commands(parsed_guards)
+    if not guards:
+        guards = normalize_guard_commands(metadata.get("guard") or metadata.get("guards"))
+    if guards:
+        config["guards"] = guards
+        config["guard"] = format_guard_summary(guards)
+
     field_map = {
         "goal": "goal",
         "scope": "scope",
         "metric": "metric",
         "verify": "verify",
-        "guard": "guard",
         "parallel": "parallel_mode",
         "web_search": "web_search",
         "stop_condition": "stop_condition",

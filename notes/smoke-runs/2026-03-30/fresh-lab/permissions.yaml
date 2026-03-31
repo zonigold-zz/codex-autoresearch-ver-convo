@@ -1,0 +1,25 @@
+permissions:
+  raw_data:
+    path: data/sample-eeg
+    policy: read_only
+    mutation_allowed: false
+  code:
+    allowed_paths:
+      - train_eeg.py
+      - eval_eeg.py
+      - configs/experiment.yaml
+      - research/project.yaml
+      - research/datasets.yaml
+      - research/permissions.yaml
+  reports:
+    allowed_paths:
+      - reports/latest_run.md
+      - reports/methods_draft.md
+guardrails:
+  - Do not edit files under data/sample-eeg during experiments.
+  - Preserve subject-heldout evaluation boundaries.
+  - Treat subject_id as a leakage-sensitive identifier.
+  - Do not alter label semantics without explicit user approval.
+launch_policy:
+  require_user_go: true
+  default_mode: undecided

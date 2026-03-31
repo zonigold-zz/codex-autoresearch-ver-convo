@@ -305,3 +305,42 @@ When `session-resume-protocol.md` detects a prior run with a valid `autoresearch
    No further rounds.
 
 The mini-wizard respects the same two-phase boundary: all questions happen before launch.
+
+## Research Overlay (Convo)
+Use this overlay when the task is research-facing or the repo already contains `research/*.yaml`.
+
+### Additional scan targets
+Before asking questions, look for:
+- dataset directories (`data/`, `datasets/`, `raw/`, `processed/`)
+- training and evaluation scripts
+- config files and notebooks
+- existing `research/project.yaml`, `research/datasets.yaml`, and `research/permissions.yaml`
+
+### Research-first questions
+On the first research-oriented launch, the mandatory clarification round should try to resolve:
+- task family / paradigm
+- dataset location and split policy
+- primary metric and direction
+- guardrails such as leakage, raw-data immutability, or schema integrity
+- desired outputs such as `reports/latest_run.md` or `reports/methods_draft.md`
+
+Use repo-grounded defaults and ask only for deltas when those research files already exist.
+
+### Research memory
+Before launch, ensure the target repo has:
+- `research/project.yaml`
+- `research/datasets.yaml`
+- `research/permissions.yaml`
+
+You may seed them with `scripts/research_bootstrap.py --repo <target-repo>` and refine them through normal file edits in the current session.
+Use `scripts/research_dataset_probe.py --repo <target-repo>` when dataset structure is unclear.
+Use `scripts/research_policy_apply.py --repo <target-repo>` only after the user agrees to apply project-scoped Codex defaults.
+
+### Research confirmation additions
+For research-facing tasks, extend the confirmation summary with:
+- dataset / split assumption
+- raw-data mutability expectation
+- requested report artifacts
+
+After completion or stop, prefer writing `reports/latest_run.md` via `scripts/research_report.py --repo <target-repo>`.
+

@@ -1,0 +1,17 @@
+﻿project_name: "convo-skill-lab"
+research_goal: "Improve subject-heldout EEG classification while keeping the workflow conversational and researcher-friendly."
+paradigm: "classification"
+domain: "eeg"
+primary_metric:
+  name: "AUROC"
+  direction: higher
+verify_command: "python eval_eeg.py --config configs/experiment.yaml --metric-only"
+guard_commands:
+  - "python train_eeg.py --config configs/experiment.yaml"
+  - "python guard_dataset.py"
+default_run_mode: foreground
+max_iterations: 2
+run_profile: smoke
+report_outputs:
+  - reports/latest_run.md
+  - reports/methods_draft.md

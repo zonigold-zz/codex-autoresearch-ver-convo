@@ -1,0 +1,62 @@
+﻿commit 7c6fa7f4033d8dff520331930822060f7f6e6be1
+Author: Zion <zonigold@kaist.ac.kr>
+Date:   Tue Mar 31 14:04:14 2026 +0900
+
+    experiment: config-driven eval scores
+---
+ configs/experiment.yaml |  5 +++++
+ eval_eeg.py             | 21 ++++++++++++++++++++-
+ 2 files changed, 25 insertions(+), 1 deletion(-)
+
+diff --git a/configs/experiment.yaml b/configs/experiment.yaml
+index 58bd761..09579d8 100644
+--- a/configs/experiment.yaml
++++ b/configs/experiment.yaml
+@@ -1,3 +1,8 @@
+ task: classification
+ split: subject-heldout
+ metric: AUROC
++subject_scores:
++  S01: 0.10
++  S02: 0.90
++  S03: 0.20
++  S04: 0.80
+diff --git a/eval_eeg.py b/eval_eeg.py
+index 30cb3eb..ef580a3 100644
+--- a/eval_eeg.py
++++ b/eval_eeg.py
+@@ -26,6 +26,25 @@ def auc_pairwise(y_true, y_score):
+                 wins += 0.5
+     return wins / total
+ 
++def load_subject_scores(config_path: Path):
++    scores = {}
++    in_subject_scores = False
++    for raw_line in config_path.read_text(encoding="utf-8").splitlines():
++        line = raw_line.rstrip()
++        stripped = line.strip()
++        if not stripped or stripped.startswith("#"):
++            continue
++        if not raw_line.startswith((" ", "\t")):
++            in_subject_scores = stripped == "subject_scores:"
++            continue
++        if not in_subject_scores:
++            continue
++        key, _, value = stripped.partition(":")
++        if not key or not _:
++            continue
++        scores[key.strip()] = float(value.strip())
++    return scores
++
+ def main():
+     parser = argparse.ArgumentParser()
+     parser.add_argument("--config", required=True)
+@@ -33,7 +52,7 @@ def main():
+     args = parser.parse_args()
+ 
+     rows = load_rows(Path("data/sample-eeg/labels.csv"))
+-    score_map = {"S01": 0.25, "S02": 0.65, "S03": 0.75, "S04": 0.85}
++    score_map = load_subject_scores(Path(args.config))
+     y_true = [int(r["label"]) for r in rows]
+     y_score = [score_map.get(r["subject_id"], 0.5) for r in rows]
+     auroc = round(auc_pairwise(y_true, y_score), 6)

@@ -1,0 +1,28 @@
+datasets:
+  - name: sample-eeg
+    path: data/sample-eeg
+    role: primary
+    modality: eeg
+    label_source: data/sample-eeg/labels.csv
+    label_unit: subject
+    target_type: binary_classification
+    split_policy: subject-heldout
+    raw_data_mutability: immutable
+    known_files:
+      - data/sample-eeg/labels.csv
+    schema:
+      labels_csv:
+        primary_key: subject_id
+        target_column: label
+        example_subject_ids:
+          - S01
+          - S02
+          - S03
+          - S04
+        observed_label_values:
+          - 0
+          - 1
+    assumptions:
+      - One label per subject.
+      - Subject identity defines split boundaries.
+      - Additional EEG feature files may be added under data/sample-eeg without changing raw labels.

@@ -1,0 +1,13 @@
+datasets:
+  - name: ""
+    path: ""
+    role: primary
+    modality: ""
+    label_source: ""
+    label_unit: ""
+    target_type: ""
+    split_policy: ""
+    raw_data_mutability: immutable
+    known_files: []
+    schema: {}
+    assumptions: []

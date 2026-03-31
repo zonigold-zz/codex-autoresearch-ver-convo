@@ -93,7 +93,7 @@ class AutoresearchScriptsTestBase(unittest.TestCase):
         metric_name: str = "failure count",
         direction: str = "lower",
         verify: str = "python3 -c pass",
-        guard: str | None = "python -m py_compile src",
+        guard: str | list[str] | None = "python -m py_compile src",
         execution_policy: str = "danger_full_access",
         stop_condition: str | None = None,
         required_stop_labels: list[str] | None = None,
@@ -122,7 +122,10 @@ class AutoresearchScriptsTestBase(unittest.TestCase):
             "--execution-policy",
             execution_policy,
         ]
-        if guard is not None:
+        if isinstance(guard, list):
+            for command in guard:
+                args.extend(["--guard", command])
+        elif guard is not None:
             args.extend(["--guard", guard])
         if stop_condition is not None:
             args.extend(["--stop-condition", stop_condition])
@@ -173,7 +176,7 @@ class AutoresearchScriptsTestBase(unittest.TestCase):
         metric_name: str = "failure count",
         direction: str = "lower",
         verify: str = "python3 -c pass",
-        guard: str = "python -m py_compile src",
+        guard: str | list[str] = "python -m py_compile src",
         execution_policy: str = "danger_full_access",
         fresh_start: bool = False,
         required_stop_labels: list[str] | None = None,
@@ -199,13 +202,16 @@ class AutoresearchScriptsTestBase(unittest.TestCase):
             direction,
             "--verify",
             verify,
-            "--guard",
-            guard,
             "--execution-policy",
             execution_policy,
             "--codex-bin",
             str(fake_codex_path),
         ]
+        if isinstance(guard, list):
+            for command in guard:
+                args.extend(["--guard", command])
+        else:
+            args.extend(["--guard", guard])
         for value in companion_repo_scopes or []:
             args.extend(["--companion-repo-scope", value])
         for label in required_stop_labels or []:

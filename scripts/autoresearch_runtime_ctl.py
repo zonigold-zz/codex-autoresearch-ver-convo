@@ -45,7 +45,12 @@ def add_manifest_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--metric-name", required=True)
     parser.add_argument("--direction", required=True, choices=["lower", "higher"])
     parser.add_argument("--verify", required=True)
-    parser.add_argument("--guard")
+    parser.add_argument(
+        "--guard",
+        action="append",
+        default=[],
+        help="Optional regression guard command. May be repeated.",
+    )
     parser.add_argument(
         "--execution-policy",
         choices=EXECUTION_POLICY_CHOICES,

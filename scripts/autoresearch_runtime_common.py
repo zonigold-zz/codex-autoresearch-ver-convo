@@ -10,7 +10,9 @@ from autoresearch_helpers import (
     AutoresearchError,
     build_repo_targets,
     default_state_path,
+    format_guard_summary,
     normalize_labels,
+    normalize_guard_commands,
     read_state_payload,
     read_runtime_payload,
     resolve_repo_path,
@@ -97,6 +99,7 @@ def manifest_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
         primary_scope=args.scope,
         companion_repo_scopes=getattr(args, "companion_repo_scope", []),
     )
+    guards = normalize_guard_commands(getattr(args, "guard", []))
     config = {
         "session_mode": "background",
         "goal": args.goal,
@@ -106,7 +109,8 @@ def manifest_config_from_args(args: argparse.Namespace) -> dict[str, Any]:
         "metric": args.metric_name,
         "direction": args.direction,
         "verify": args.verify,
-        "guard": args.guard,
+        "guards": guards,
+        "guard": format_guard_summary(guards) or None,
         "iterations": args.iterations,
         "run_tag": args.run_tag,
         "stop_condition": args.stop_condition,
