@@ -1,8 +1,8 @@
 interface:
-  display_name: "Codex Autoresearch"
-  short_description: "Single-entry autonomous experimentation with foreground or background runs"
+  display_name: "Codex Autoresearch Convo"
+  short_description: "Conversational research onboarding with delta-only returning runs and foreground/background go launches"
   brand_color: "#2563EB"
-  default_prompt: "Use $codex-autoresearch as the single human entrypoint: infer a goal, metric, scope, verify/guard commands, and any structural keep or stop labels this repo needs, run at least one repo-grounded clarification round, then launch either a foreground or background run. After launch, baseline once and record every completed experiment before starting the next one. Reuse the same skill for status, stop, or resume requests."
+  default_prompt: "Use $codex-autoresearch as the Convo entrypoint. Keep the shared autoresearch loop core, but make setup conversational and research-aware: on first run, infer the goal, task family, metric, split policy, verify command, and guard commands, confirm them with at least one repo-grounded clarification round, and initialize canonical research memory files when needed. On returning runs, read existing memory first and ask only for deltas. Require an explicit foreground or background choice and treat `go` as the launch boundary. After launch, baseline once and record every completed experiment before starting the next one. Reuse the same skill for status, stop, resume, migration, and report-generation requests."
 
 policy:
   allow_implicit_invocation: true
