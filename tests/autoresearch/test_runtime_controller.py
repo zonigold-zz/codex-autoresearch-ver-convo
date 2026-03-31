@@ -21,6 +21,33 @@ import autoresearch_runtime_ops
 class AutoresearchRuntimeControllerTest(AutoresearchScriptsTestBase):
     maxDiff = None
 
+    def test_create_launch_manifest_persists_multiple_guards_and_runtime_prompt_lists_them(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmpdir = Path(tmp)
+            created = self.create_launch_manifest(
+                tmpdir,
+                guard=["python -m py_compile src", "pytest -q tests/unit"],
+            )
+            manifest = json.loads(Path(created["launch_path"]).read_text(encoding="utf-8"))
+            self.assertEqual(
+                manifest["config"]["guards"],
+                ["python -m py_compile src", "pytest -q tests/unit"],
+            )
+            self.assertEqual(
+                manifest["config"]["guard"],
+                "[1] python -m py_compile src; [2] pytest -q tests/unit",
+            )
+
+            prompt_text = self.run_script_text(
+                "autoresearch_resume_prompt.py",
+                "--repo",
+                str(tmpdir),
+            )
+            self.assertIn(
+                "Guards: [1] python -m py_compile src; [2] pytest -q tests/unit",
+                prompt_text,
+            )
+
     def test_create_launch_manifest_persists_required_stop_labels(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmpdir = Path(tmp)

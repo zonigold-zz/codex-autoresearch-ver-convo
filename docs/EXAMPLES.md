@@ -660,3 +660,12 @@ Guard: npx tsc --noEmit && npm run test:unit && npm run lint
 ```
 
 All must pass for the guard to pass.
+
+When you launch through the runtime helpers, prefer:
+
+```
+--guard "npx tsc --noEmit" --guard "npm run test:unit" --guard "npm run lint"
+```
+
+This keeps each guard first-class in state and metadata while preserving backward compatibility for
+existing single-guard runs.

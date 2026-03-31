@@ -219,6 +219,38 @@ def normalize_labels(values: Any) -> list[str]:
     return normalized
 
 
+def normalize_guard_commands(values: Any) -> list[str]:
+    if values in (None, "", [], ()):
+        return []
+
+    if isinstance(values, str):
+        raw_values = [values]
+    else:
+        try:
+            raw_values = list(values)
+        except TypeError as exc:
+            raise AutoresearchError(f"Invalid guards value: {values!r}") from exc
+
+    normalized: list[str] = []
+    for raw in raw_values:
+        if not isinstance(raw, str):
+            raise AutoresearchError(f"Invalid guard command: {raw!r}")
+        command = raw.strip()
+        if not command or command == "-":
+            continue
+        normalized.append(command)
+    return normalized
+
+
+def format_guard_summary(values: Any) -> str:
+    guards = normalize_guard_commands(values)
+    if not guards:
+        return ""
+    if len(guards) == 1:
+        return guards[0]
+    return "; ".join(f"[{index}] {guard}" for index, guard in enumerate(guards, start=1))
+
+
 def evaluate_required_label_gate(
     required_labels: Any,
     actual_labels: Any,

@@ -168,6 +168,75 @@ class AutoresearchExecStateTest(AutoresearchScriptsTestBase):
                 log_text,
             )
 
+    def test_exec_rebuild_preserves_guard_arrays_from_results_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmpdir = Path(tmp)
+            results_path = tmpdir / "research-results.tsv"
+            scratch_state_path = Path(
+                self.run_script_text(
+                    "autoresearch_exec_state.py",
+                    "--repo-root",
+                    str(tmpdir),
+                )
+            )
+
+            self.run_script(
+                "autoresearch_init_run.py",
+                "--results-path",
+                str(results_path),
+                "--mode",
+                "exec",
+                "--goal",
+                "Reduce failures",
+                "--scope",
+                "src/**/*.py",
+                "--metric-name",
+                "failure count",
+                "--direction",
+                "lower",
+                "--verify",
+                "python3 -c pass",
+                "--guard",
+                "python -m py_compile src",
+                "--guard",
+                "pytest -q tests/unit",
+                "--baseline-metric",
+                "10",
+                "--baseline-commit",
+                "base111",
+                "--baseline-description",
+                "baseline failures",
+                cwd=tmpdir,
+            )
+            scratch_state_path.unlink()
+
+            self.run_script(
+                "autoresearch_record_iteration.py",
+                "--results-path",
+                str(results_path),
+                "--status",
+                "keep",
+                "--metric",
+                "8",
+                "--commit",
+                "keep222",
+                "--guard",
+                "pass",
+                "--description",
+                "better attempt",
+                cwd=tmpdir,
+            )
+
+            state = json.loads(scratch_state_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                state["config"]["guards"],
+                ["python -m py_compile src", "pytest -q tests/unit"],
+            )
+            self.assertEqual(
+                state["config"]["guard"],
+                "[1] python -m py_compile src; [2] pytest -q tests/unit",
+            )
+
     def test_exec_rebuild_preserves_multi_repo_targets_from_results_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmpdir = Path(tmp)

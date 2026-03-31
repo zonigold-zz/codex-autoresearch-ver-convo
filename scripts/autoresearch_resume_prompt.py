@@ -6,7 +6,9 @@ from pathlib import Path
 
 from autoresearch_helpers import (
     AutoresearchError,
+    format_guard_summary,
     format_repo_target_label,
+    normalize_guard_commands,
     repo_targets_from_config,
     read_launch_manifest,
     resolve_repo_path,
@@ -26,7 +28,6 @@ RUNTIME_CHECKLIST = (
 )
 OPTIONAL_CONFIG_FIELDS = (
     ("execution_policy", "Execution policy"),
-    ("guard", "Guard"),
     ("iterations", "Iterations"),
     ("stop_condition", "Stop condition"),
     ("required_keep_labels", "Required keep labels"),
@@ -66,6 +67,12 @@ def build_runtime_prompt(
         f"Direction: {config.get('direction', '')}",
         f"Verify: {config.get('verify', '')}",
     ]
+    guards = normalize_guard_commands(config.get("guards") or config.get("guard"))
+    if guards:
+        if len(guards) == 1:
+            lines.append(f"Guard: {guards[0]}")
+        else:
+            lines.append(f"Guards: {format_guard_summary(guards)}")
     if len(repo_targets) > 1:
         lines.append("Managed repos:")
         for target in repo_targets:

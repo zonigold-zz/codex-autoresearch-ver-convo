@@ -238,6 +238,9 @@ Two commands and two optional label gates serve different purposes:
 ```text
 Verify: pytest --cov=src --cov-report=term 2>&1 | grep TOTAL | awk '{print $NF}'   # did coverage go up?
 Guard: npx tsc --noEmit                                                              # do types still pass?
+
+When launching via the runtime helpers, prefer repeating `--guard` for multiple guards instead of
+joining them into one shell-specific command string. Single-guard runs still work unchanged.
 ```
 
 If verify passes but guard fails, the change is reworked (up to 2 attempts). Guard files are never modified.
