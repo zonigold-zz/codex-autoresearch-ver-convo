@@ -1,0 +1,24 @@
+datasets:
+  - name: "sample-eeg"
+    path: "data/sample-eeg"
+    role: "primary"
+    modality: "EEG subject-level labels metadata"
+    label_source: "data/sample-eeg/labels.csv"
+    label_unit: "binary class label per subject"
+    target_type: "binary"
+    split_policy: "subject-heldout"
+    raw_data_mutability: "immutable"
+    known_files:
+      - "data/sample-eeg/labels.csv"
+    schema:
+      labels_csv:
+        columns:
+          - "subject_id"
+          - "label"
+        constraints:
+          - "subject_id must be unique"
+          - "label values must be 0 or 1"
+    assumptions:
+      - "Each row represents one held-out subject label entry."
+      - "No waveform tensors or session-level raw EEG files are currently tracked in-repo."
+      - "Subject-heldout evaluation is the default and should not be replaced with random splitting without explicit approval."
