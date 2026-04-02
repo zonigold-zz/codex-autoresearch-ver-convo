@@ -1,90 +1,99 @@
 # Installation
 
-This page covers installation and local-development notes for the Convo variant.
+This page covers installation and local-development notes for the **Convo** variant.
 
----
+## Recommended layout
 
-## Recommended Layout
-
-For this repo, prefer a repo-local install so the skill and the research-oriented docs travel with the project:
+For this variant, prefer a **repo-local install** so the skill and its research-specific docs travel with the target repo.
 
 ```text
-<target-repo>\
-  .agents\
-    skills\
-      codex-autoresearch  -> this repo
+<target-repo>/
+  .agents/
+    skills/
+      codex-autoresearch -> <path-to-local-clone-of-codex-autoresearch-ver-convo>
 ```
 
-That keeps the Convo variant active only where you want its research-memory behavior.
+This keeps Convo active only where you want its research-memory behavior.
 
-## Install Options
+## Install options
 
-### Skill installer
+### 1. Repo-local symlink or junction (recommended for development)
 
-```text
-$skill-installer install https://github.com/leo-lilinxiao/codex-autoresearch
-```
-
-Restart Codex after installation changes.
-
-### Copy install
+Clone this repository somewhere on your machine:
 
 ```powershell
-git clone https://github.com/leo-lilinxiao/codex-autoresearch.git
-Copy-Item -Recurse codex-autoresearch <target-repo>\.agents\skills\codex-autoresearch
+git clone https://github.com/zonigold-zz/codex-autoresearch-ver-convo.git
 ```
 
-### Repo-local symlink or junction
-
-This is the preferred Windows development setup for the Convo variant because doc and prompt edits become live immediately.
+Inside the target repo, create a repo-local skill link.
 
 PowerShell symbolic link:
 
 ```powershell
 New-Item -ItemType SymbolicLink `
-  -Path <target-repo>\.agents\skills\codex-autoresearch `
-  -Target F:\repos\codex-autoresearch-ver-convo
+  -Path .\.agents\skills\codex-autoresearch `
+  -Target <path-to-local-clone-of-codex-autoresearch-ver-convo>
 ```
 
-If developer-mode symlinks are unavailable, use a junction:
+If Windows symlinks are unavailable, use a junction:
 
 ```powershell
-cmd /c mklink /J <target-repo>\.agents\skills\codex-autoresearch F:\repos\codex-autoresearch-ver-convo
+cmd /c mklink /J .\.agents\skills\codex-autoresearch <path-to-local-clone-of-codex-autoresearch-ver-convo>
 ```
 
-## Verify the Install
+### 2. Copy install
 
-Open Codex in the target repo and verify:
+Use this if you do not want a live link.
 
-1. Type `$` and confirm `codex-autoresearch` appears.
-2. Invoke it with a research-oriented prompt:
+```powershell
+git clone https://github.com/zonigold-zz/codex-autoresearch-ver-convo.git
+Copy-Item -Recurse <path-to-local-clone-of-codex-autoresearch-ver-convo> .\.agents\skills\codex-autoresearch
+```
+
+### 3. Skill installer
+
+If you use a skill installer workflow, point it at this repository, not the upstream stock repo.
+
+```text
+$skill-installer install https://github.com/zonigold-zz/codex-autoresearch-ver-convo
+```
+
+Restart Codex after install changes.
+
+## Verify the install
+
+Open Codex in the target repo and check:
+
+1. Type `$`
+2. Confirm `codex-autoresearch` appears
+3. Invoke it with a research-oriented prompt:
 
 ```text
 $codex-autoresearch
 Improve subject-heldout EEG classification quality without violating dataset integrity constraints.
 ```
 
-Expected first-run behavior in Convo:
+Expected Convo behavior on a first run:
 
-- Codex reads the repo and looks for existing research memory.
-- If memory is missing, it asks onboarding questions.
-- It proposes defaults for metric, split, guards, and reports.
-- It asks you to choose `foreground` or `background`.
-- It waits for `go`.
+- Codex scans the repo for research signals
+- If `research/*.yaml` is missing, it asks onboarding questions
+- It proposes repo-grounded defaults for metric, split, verify, guards, and reports
+- It asks you to choose `foreground` or `background`
+- It waits for `go`
 
-## First-Run Onboarding Files
+## First-run onboarding files
 
-On a first run, Convo may create or refresh these canonical research memory files:
+On a first run, Convo may create or refresh:
 
-- `project.yaml`
-- `datasets.yaml`
-- `permissions.yaml`
+- `research/project.yaml`
+- `research/datasets.yaml`
+- `research/permissions.yaml`
 
-New writes should use the richer schema documented in [GUIDE.md](GUIDE.md), even when the repo still contains older flat YAMLs elsewhere.
+New writes should use the richer canonical schema documented in [GUIDE.md](GUIDE.md), even if older flat YAML files still exist elsewhere.
 
-## Returning Runs
+## Returning runs
 
-On a returning run, the install is already complete; the main operational check is whether the canonical research memory still matches the current objective.
+On a returning run, install is already complete. The main operational check is whether the canonical research memory still matches the current objective.
 
 Convo should:
 
@@ -92,50 +101,66 @@ Convo should:
 - ask only for deltas
 - preserve stable defaults
 
-If the repo materially changed and still uses a legacy memory shape, run:
+If the repo still uses a legacy schema, preview migration first:
 
 ```powershell
-python scripts\research_migrate_schema.py --repo <target-repo> --dry-run
+python .\.agents\skills\codex-autoresearch\scripts\research_migrate_schema.py --repo <target-repo> --dry-run
 ```
 
-## Foreground and Background Prerequisites
+Then apply it in place if the preview looks correct.
+
+## Foreground and background prerequisites
 
 ### Foreground
-
-- Works in the current Codex session.
-- Best for supervised runs or smoke tests.
-- No runtime control files are required.
+- Runs inside the current Codex session
+- Best for supervised runs and smoke tests
+- No detached runtime control files are required
 
 ### Background
+- Runs through the detached runtime controller
+- Best for long or unattended loops
+- Creates:
+  - `autoresearch-launch.json`
+  - `autoresearch-runtime.json`
+  - `autoresearch-runtime.log`
 
-- Requires the repo to be effectively trusted for unattended `git commit` and rollback operations.
-- Best for overnight or detached runs.
-- Creates `autoresearch-launch.json`, `autoresearch-runtime.json`, and `autoresearch-runtime.log`.
+Background mode only behaves as a true unattended run when the target repo is configured so Codex does not stop on every `git commit` or rollback operation.
 
-If approvals or sandboxing interrupt normal git operations, background mode will not behave like a true unattended launch.
+## Trusted project notes on Windows
 
-## Trusted Project Notes on Windows
+For Convo background runs, treat the target repo as trusted when appropriate so project-scoped `.codex/config.toml` can take effect and approvals do not interrupt normal runtime operations.
 
-For Convo background runs, treat the target repo as trusted when appropriate so Codex does not stop on each commit/revert decision. This is especially important for long-running research loops where the point of background mode is to continue after `go` without operator interaction.
+This matters especially for:
 
-## BOM and LF Precautions
+- `git commit`
+- rollback actions
+- detached runtime control
 
-Windows editors often change encoding or line endings silently. For this repo:
+## BOM and LF precautions
 
-- prefer UTF-8 without BOM
-- prefer LF line endings
-- avoid introducing CRLF churn in Markdown and YAML
-- check diffs if an editor rewrites untouched files
+On Windows, editors often rewrite files silently.
 
-This matters because Markdown, YAML, and prompt metadata are consumed on both Windows and Unix-like environments.
+For this repo, prefer:
 
-## Multi-Guard Helper Launches
+- UTF-8 **without BOM**
+- LF line endings
+- minimal CRLF churn in Markdown, YAML, TOML, rules, and helper scripts
 
-When launching through helper scripts, prefer repeated `--guard` flags:
+This is especially important for:
+
+- `*.md`
+- `*.yaml` / `*.yml`
+- `*.toml`
+- `*.rules`
+- helper scripts consumed across environments
+
+## Multi-guard helper launches
+
+When launching helper-driven runs, prefer repeated `--guard` flags:
 
 ```powershell
-python .agents\skills\codex-autoresearch\scripts\autoresearch_runtime_ctl.py launch `
-  --repo F:\lab\convo-skill-regression-lab `
+python .\.agents\skills\codex-autoresearch\scripts\autoresearch_runtime_ctl.py launch `
+  --repo <target-repo> `
   --goal "Improve subject-heldout EEG classification quality without violating dataset integrity constraints." `
   --metric AUROC `
   --direction higher `
@@ -144,21 +169,23 @@ python .agents\skills\codex-autoresearch\scripts\autoresearch_runtime_ctl.py lau
   --guard "python train_eeg.py --config configs/experiment.yaml"
 ```
 
-Repeated `--guard` keeps guard metadata structured in `autoresearch-state.json`, `research-results.tsv`, and reporting output.
+Repeated `--guard` preserves structured guard metadata in:
 
-## EEG Smoke-Run Fixture
+- `autoresearch-state.json`
+- `research-results.tsv`
+- downstream reports
 
-This repo's current regression example lives at:
+## Smoke-run snapshots
 
-- [research-results.tsv](F:\repos\codex-autoresearch-ver-convo\notes\smoke-runs\2026-03-31-regression-rerun\regression-lab\research-results.tsv)
-- [autoresearch-state.json](F:\repos\codex-autoresearch-ver-convo\notes\smoke-runs\2026-03-31-regression-rerun\regression-lab\autoresearch-state.json)
+This repository includes smoke-run snapshots under `notes/smoke-runs/`.
 
-Use it as a post-install smoke reference for:
+Use them as reference material for:
 
 - first-run research wording
+- delta-only returning runs
 - repeated-guard metadata
 - report generation
-- foreground session-mode recording
+- migration helper validation
 
 ## Updating
 
