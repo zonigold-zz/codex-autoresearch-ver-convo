@@ -1,0 +1,30 @@
+Codex Autoresearch Convo
+NOTICE
+
+This repository is a derivative work based on:
+
+  leo-lilinxiao/codex-autoresearch
+  https://github.com/leo-lilinxiao/codex-autoresearch
+
+The Convo variant preserves the upstream autonomous loop core while adding
+research-oriented workflow changes, including:
+
+- conversational first-run onboarding
+- canonical repo-local research memory
+- delta-only returning runs
+- multi-guard runtime metadata
+- richer research reporting
+- legacy-to-canonical research schema migration helpers
+- Windows-focused installation and encoding guidance
+
+This repository is distributed under the MIT License.
+See the LICENSE file in this repository.
+
+When redistributing substantial portions of this repository, retain the
+applicable copyright and permission notices from the MIT License.
+
+Maintainer of this derivative repository:
+  zonigold-zz
+
+If you want legal-name attribution instead of a GitHub handle, replace the
+maintainer line above with the appropriate individual or organization name.
