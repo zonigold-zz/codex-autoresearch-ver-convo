@@ -1,4 +1,4 @@
-﻿name: convo-focused-tests
+name: convo-focused-tests
 
 on:
   push:
