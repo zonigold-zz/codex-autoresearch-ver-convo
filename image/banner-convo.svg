@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="420" viewBox="0 0 1400 420" role="img" aria-label="Codex Autoresearch Convo">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1400" height="420" rx="28" fill="url(#bg)"/>
+
+  <text x="80" y="120" fill="#e2e8f0" font-family="Segoe UI, Arial, sans-serif" font-size="56" font-weight="700">
+    Codex Autoresearch Convo
+  </text>
+
+  <text x="80" y="175" fill="#bfdbfe" font-family="Segoe UI, Arial, sans-serif" font-size="28">
+    Research-first conversational autonomous research loops for Codex
+  </text>
+
+  <text x="80" y="250" fill="#e2e8f0" font-family="Segoe UI, Arial, sans-serif" font-size="24">
+    First-run onboarding • Delta-only reruns • Canonical research memory
+  </text>
+
+  <text x="80" y="295" fill="#e2e8f0" font-family="Segoe UI, Arial, sans-serif" font-size="24">
+    Multi-guard runtime • Research-readable reports • Windows-ready guidance
+  </text>
+
+  <rect x="980" y="95" width="300" height="220" rx="20" fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.18)"/>
+  <text x="1010" y="145" fill="#f8fafc" font-family="Consolas, monospace" font-size="20">$codex-autoresearch</text>
+  <text x="1010" y="185" fill="#dbeafe" font-family="Consolas, monospace" font-size="18">scan → confirm → write</text>
+  <text x="1010" y="220" fill="#dbeafe" font-family="Consolas, monospace" font-size="18">research/*.yaml</text>
+  <text x="1010" y="255" fill="#dbeafe" font-family="Consolas, monospace" font-size="18">foreground go</text>
+</svg>
