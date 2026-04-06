@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="image/banner.png" width="700" alt="Codex Autoresearch Convo">
+  <img src="image/banner-convo.svg" width="900" alt="Codex Autoresearch Convo">
 </p>
 
 # Codex Autoresearch Convo
@@ -8,50 +8,45 @@ Research-first, conversational autonomous research loops for Codex.
 
 [Install](docs/INSTALL.md) · [Guide](docs/GUIDE.md) · [Examples](docs/EXAMPLES.md) · [Notice](NOTICE) · [License](LICENSE)
 
-## What this variant is
+## In one sentence
 
-Codex Autoresearch Convo keeps the autonomous loop core of stock `codex-autoresearch`:
+Convo keeps the stock `codex-autoresearch` loop core—
 
-**modify → verify → keep or discard → log → repeat**
+**modify → verify → keep/discard → log → repeat**
 
-What changes is the **research-facing user experience**.
+—but adds a research-facing control layer so Codex can onboard a repo once, remember stable assumptions, and ask only for deltas later.
 
-Convo is designed for repositories where the hard part is not only running iterations, but also:
+## Why Convo is different
 
-- deciding the task family and split policy cleanly
-- remembering stable research assumptions
-- avoiding repeated setup interviews
-- keeping verify and guard commands explicit
-- generating a short researcher-readable run summary
+### Stock `codex-autoresearch`
+- strong autonomous loop core
+- good for generic engineering iteration
+- more setup details often stay in the operator’s head
 
-## What Convo changes compared with stock codex-autoresearch
+### Convo
+- scans a research repo and proposes repo-grounded defaults
+- writes repo-local research memory under `research/*.yaml`
+- reuses that memory on later runs
+- treats repeated guards as structured runtime items
+- produces a researcher-readable summary in `reports/latest_run.md`
 
-| Area | Stock codex-autoresearch | Convo |
-|---|---|---|
-| First run | Setup is more generic and operator-driven | Repo scan + conversational onboarding + repo-grounded defaults |
-| Later runs | Easy to restate the same assumptions | Reads repo-local research memory first and asks only for deltas |
-| Research memory | Not the main UX abstraction | `research/project.yaml`, `research/datasets.yaml`, `research/permissions.yaml` are first-class |
-| Guards | Easy to think of as one shell string | Repeated guards remain structured runtime items |
-| Reporting | Core artifacts are strong, but the summary is more generic | `reports/latest_run.md` is treated as a researcher-readable output |
-| Legacy repo adoption | Mixed memory shapes can persist | Includes a migration helper for legacy simple schema |
+## Best fit
 
-## Who this variant is for
-
-Use Convo when you want Codex to act like a research assistant that remembers repo-local context such as:
+Use Convo when you want Codex to remember repo-level research assumptions such as:
 
 - task family
 - split policy
-- metric and direction
+- primary metric and direction
 - verify command
 - guard commands
 - raw-data mutability constraints
-- desired report artifacts
+- expected report artifacts
 
-This is especially useful for ML, neurotech, data-analysis, benchmarking, ablation, and manuscript-adjacent repositories where stable context matters across sessions.
+This is especially useful for ML, neurotech, evaluation, benchmarking, ablation, and manuscript-adjacent repositories.
 
-## Quick start
+## 60-second start
 
-1. Install this repository as the active repo-local skill for a target repo.
+1. Install this repository as the active repo-local skill for your target repo. See [docs/INSTALL.md](docs/INSTALL.md).
 2. Open Codex in the target repo.
 3. Invoke:
 
@@ -65,14 +60,11 @@ Improve subject-heldout EEG classification quality without violating dataset int
    - proposes repo-grounded defaults
    - asks a short onboarding round
    - writes `research/*.yaml`
-5. Choose a launch mode:
-   - `foreground`
-   - `background`
-6. Launch with:
+5. Launch with:
    - `foreground go`
    - or `background go`
 
-Everything before `go` is setup.
+Everything before `go` is setup.  
 Everything after `go` is autonomous execution.
 
 ## First-run onboarding
@@ -85,9 +77,6 @@ If canonical research memory is missing, Convo confirms the minimum durable fact
 - dataset path and split policy
 - guardrails and mutation constraints
 - desired report artifacts
-
-The point is not to ask more questions than necessary.
-The point is to avoid asking the same questions again later.
 
 ## Returning runs: delta-only
 
@@ -117,12 +106,9 @@ Convo uses three durable repo-local memory files:
 - `research/permissions.yaml`
   - write boundaries, guardrails, launch policy
 
-Older repos may still contain flatter legacy YAML layouts.
-Convo can read those, and this repository includes a migration helper for converting them into the canonical richer schema.
+Older repos may still contain flatter legacy YAML layouts. Convo can read those, and this repository includes a migration helper to convert them into the canonical richer schema.
 
 ## Run artifacts
-
-Convo distinguishes between two artifact groups.
 
 ### Research memory
 - `research/project.yaml`
@@ -137,13 +123,17 @@ Convo distinguishes between two artifact groups.
 - `autoresearch-runtime.json` (background only)
 - `autoresearch-runtime.log` (background only)
 
-For research-facing repos, `scripts/research_report.py --repo <target-repo>` can synthesize `reports/latest_run.md` from artifact truth.
+For research-facing repos, use:
+
+```text
+python scripts/research_report.py --repo PATH_TO_TARGET_REPO
+```
+
+to synthesize `reports/latest_run.md` from artifact truth.
 
 ## Reporting
 
-Convo treats the run summary as a real research artifact, not just a debugging convenience.
-
-The report helper summarizes:
+The report helper is designed to summarize:
 
 1. Objective
 2. Metric and verification
@@ -160,7 +150,7 @@ When launching helper-driven runs, prefer repeated `--guard` flags instead of co
 
 ```powershell
 python .\.agents\skills\codex-autoresearch\scripts\autoresearch_runtime_ctl.py launch `
-  --repo <target-repo> `
+  --repo PATH_TO_TARGET_REPO `
   --goal "Improve subject-heldout EEG classification quality without violating dataset integrity constraints." `
   --metric AUROC `
   --direction higher `
@@ -178,7 +168,7 @@ Convo uses one explicit launch boundary:
 - **Before `go`**: interactive clarification, onboarding, confirmation
 - **After `go`**: no more user questions during the active run
 
-Use `foreground` when you want to supervise or smoke-test the loop.
+Use `foreground` when you want to supervise or smoke-test the loop.  
 Use `background` when you want a detached run and the target repo is configured for unattended operation.
 
 ## Windows notes

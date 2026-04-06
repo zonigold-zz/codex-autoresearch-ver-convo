@@ -7,10 +7,10 @@ This page covers installation and local-development notes for the **Convo** vari
 For this variant, prefer a **repo-local install** so the skill and its research-specific docs travel with the target repo.
 
 ```text
-<target-repo>/
+PATH_TO_TARGET_REPO/
   .agents/
     skills/
-      codex-autoresearch -> <path-to-local-clone-of-codex-autoresearch-ver-convo>
+      codex-autoresearch -> PATH_TO_LOCAL_CLONE_OF_CODEX_AUTORESEARCH_VER_CONVO
 ```
 
 This keeps Convo active only where you want its research-memory behavior.
@@ -31,14 +31,14 @@ PowerShell symbolic link:
 
 ```powershell
 New-Item -ItemType SymbolicLink `
-  -Path .\.agents\skills\codex-autoresearch `
-  -Target <path-to-local-clone-of-codex-autoresearch-ver-convo>
+  -Path PATH_TO_TARGET_REPO\.agents\skills\codex-autoresearch `
+  -Target PATH_TO_LOCAL_CLONE_OF_CODEX_AUTORESEARCH_VER_CONVO
 ```
 
 If Windows symlinks are unavailable, use a junction:
 
 ```powershell
-cmd /c mklink /J .\.agents\skills\codex-autoresearch <path-to-local-clone-of-codex-autoresearch-ver-convo>
+cmd /c mklink /J PATH_TO_TARGET_REPO\.agents\skills\codex-autoresearch PATH_TO_LOCAL_CLONE_OF_CODEX_AUTORESEARCH_VER_CONVO
 ```
 
 ### 2. Copy install
@@ -47,7 +47,7 @@ Use this if you do not want a live link.
 
 ```powershell
 git clone https://github.com/zonigold-zz/codex-autoresearch-ver-convo.git
-Copy-Item -Recurse <path-to-local-clone-of-codex-autoresearch-ver-convo> .\.agents\skills\codex-autoresearch
+Copy-Item -Recurse PATH_TO_LOCAL_CLONE_OF_CODEX_AUTORESEARCH_VER_CONVO PATH_TO_TARGET_REPO\.agents\skills\codex-autoresearch
 ```
 
 ### 3. Skill installer
@@ -104,7 +104,7 @@ Convo should:
 If the repo still uses a legacy schema, preview migration first:
 
 ```powershell
-python .\.agents\skills\codex-autoresearch\scripts\research_migrate_schema.py --repo <target-repo> --dry-run
+python PATH_TO_TARGET_REPO\.agents\skills\codex-autoresearch\scripts\research_migrate_schema.py --repo PATH_TO_TARGET_REPO --dry-run
 ```
 
 Then apply it in place if the preview looks correct.
@@ -159,8 +159,8 @@ This is especially important for:
 When launching helper-driven runs, prefer repeated `--guard` flags:
 
 ```powershell
-python .\.agents\skills\codex-autoresearch\scripts\autoresearch_runtime_ctl.py launch `
-  --repo <target-repo> `
+python PATH_TO_TARGET_REPO\.agents\skills\codex-autoresearch\scripts\autoresearch_runtime_ctl.py launch `
+  --repo PATH_TO_TARGET_REPO `
   --goal "Improve subject-heldout EEG classification quality without violating dataset integrity constraints." `
   --metric AUROC `
   --direction higher `
