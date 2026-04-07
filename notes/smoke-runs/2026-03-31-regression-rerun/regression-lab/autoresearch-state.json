@@ -1,0 +1,57 @@
+{
+  "config": {
+    "direction": "higher",
+    "goal": "Improve subject-heldout EEG classification quality without violating dataset integrity constraints.",
+    "guard": "[1] python guard_dataset.py; [2] python train_eeg.py --config configs/experiment.yaml",
+    "guards": [
+      "python guard_dataset.py",
+      "python train_eeg.py --config configs/experiment.yaml"
+    ],
+    "iterations": null,
+    "metric": "AUROC",
+    "parallel_mode": "serial",
+    "repos": [
+      {
+        "path": "F:\\lab\\convo-skill-regression-lab",
+        "role": "primary",
+        "scope": "train_eeg.py,eval_eeg.py,guard_dataset.py,configs/experiment.yaml,data/sample-eeg/labels.csv"
+      }
+    ],
+    "rollback_policy": null,
+    "scope": "train_eeg.py,eval_eeg.py,guard_dataset.py,configs/experiment.yaml,data/sample-eeg/labels.csv",
+    "session_mode": "foreground",
+    "stop_condition": null,
+    "verify": "python eval_eeg.py --config configs/experiment.yaml --metric-only",
+    "web_search": "disabled"
+  },
+  "mode": "loop",
+  "run_tag": "",
+  "state": {
+    "baseline_metric": 0.75,
+    "best_iteration": 1,
+    "best_metric": 1,
+    "blocked": 0,
+    "consecutive_discards": 0,
+    "crashes": 0,
+    "current_labels": [],
+    "current_metric": 1,
+    "discards": 0,
+    "iteration": 1,
+    "keeps": 1,
+    "last_commit": "7c6fa7f",
+    "last_repo_commits": {
+      "F:\\lab\\convo-skill-regression-lab": "7c6fa7f"
+    },
+    "last_status": "keep",
+    "last_trial_commit": "7c6fa7f",
+    "last_trial_labels": [],
+    "last_trial_metric": 1,
+    "last_trial_repo_commits": {
+      "F:\\lab\\convo-skill-regression-lab": "7c6fa7f"
+    },
+    "no_ops": 0,
+    "pivot_count": 0
+  },
+  "updated_at": "2026-03-31T05:04:37Z",
+  "version": 1
+}
