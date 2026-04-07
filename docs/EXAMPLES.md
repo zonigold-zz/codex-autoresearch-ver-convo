@@ -168,7 +168,7 @@ Preferred helper launch:
 
 ```powershell
 python .agents\skills\codex-autoresearch\scripts\autoresearch_runtime_ctl.py launch `
-  --repo F:\lab\convo-skill-regression-lab `
+  --repo PATH_TO_REGRESSION_FIXTURE `
   --goal "Improve subject-heldout EEG classification quality without violating dataset integrity constraints." `
   --metric AUROC `
   --direction higher `
