@@ -6,7 +6,7 @@
 
 Research-first, conversational autonomous research loops for Codex.
 
-[Install](docs/INSTALL.md) · [Guide](docs/GUIDE.md) · [Examples](docs/EXAMPLES.md) · [Release](https://github.com/zonigold-zz/codex-autoresearch-ver-convo/releases/tag/convo-v0.1.0-alpha.2) · [Notice](NOTICE) · [License](LICENSE)
+[Install](docs/INSTALL.md) · [Guide](docs/GUIDE.md) · [Examples](docs/EXAMPLES.md) · [Release](https://github.com/zonigold-zz/codex-autoresearch-ver-convo/releases) · [Notice](NOTICE) · [License](LICENSE)
 
 ## In one sentence
 
