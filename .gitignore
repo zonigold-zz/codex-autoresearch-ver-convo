@@ -20,3 +20,5 @@ fix/
 security/
 ship/
 notes/lab-archives/*.zip
+!notes/smoke-runs/2026-03-31-regression-rerun/regression-lab/research-results.tsv
+!notes/smoke-runs/2026-03-31-regression-rerun/regression-lab/autoresearch-state.json
