@@ -8,6 +8,10 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Workflow](https://img.shields.io/github/actions/workflow/status/zonigold-zz/codex-autoresearch-ver-convo/convo-focused-tests.yml?branch=main)](https://github.com/zonigold-zz/codex-autoresearch-ver-convo/actions)
 
+[![Release](https://img.shields.io/github/v/release/zonigold-zz/codex-autoresearch-ver-convo?include_prereleases&label=release)](https://github.com/zonigold-zz/codex-autoresearch-ver-convo/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Workflow](https://img.shields.io/github/actions/workflow/status/zonigold-zz/codex-autoresearch-ver-convo/convo-focused-tests.yml?branch=main)](https://github.com/zonigold-zz/codex-autoresearch-ver-convo/actions)
+
 Research-first, conversational autonomous research loops for Codex.
 
 [Install](docs/INSTALL.md) · [Guide](docs/GUIDE.md) · [Examples](docs/EXAMPLES.md) · [Release](https://github.com/zonigold-zz/codex-autoresearch-ver-convo/releases) · [Notice](NOTICE) · [License](LICENSE)

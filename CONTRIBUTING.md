@@ -1,6 +1,6 @@
-# Contributing to codex-autoresearch
+# Contributing to Codex Autoresearch Convo
 
-This project is a Markdown-first Codex skill with a small set of helper scripts and stdlib tests. There is still no build step and no runtime dependency installation. Most changes are `.md` edits, but stateful behavior now also lives in `scripts/` and is validated by `tests/`.
+This project is a Markdown-first Codex skill and research-facing derivative of codex-autoresearch, with a small set of helper scripts and focused tests. There is still no build step and no runtime dependency installation. Most changes are `.md` edits, but stateful behavior now also lives in `scripts/` and is validated by `tests/`.
 
 ## How the skill is structured
 
