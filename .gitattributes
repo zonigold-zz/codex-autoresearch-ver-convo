@@ -5,3 +5,5 @@
 *.toml text eol=lf
 *.rules text eol=lf
 *.csv text eol=lf
+integrations/telegram/*.py text eol=lf
+integrations/telegram/*.cmd text eol=crlf
